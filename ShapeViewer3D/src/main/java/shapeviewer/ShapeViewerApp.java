@@ -152,21 +152,73 @@ public class ShapeViewerApp extends JFrame {
         return panel;
     }
 
+    // Für Maus-Drag-Tracking
+    private int lastMouseX, lastMouseY;
+    private boolean isDragging = false;
+
     private void setupInteraction() {
         glCanvas.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if(!objects.isEmpty()) {
-                    int idx = objects.indexOf(renderer.selectedObject);
-                    if (idx == -1 && !objects.isEmpty()) idx = 0;
-                    else idx = (idx + 1) % objects.size();
+                // Linksklick: Objekt auswählen
+                if (SwingUtilities.isLeftMouseButton(e)) {
+                    if(!objects.isEmpty()) {
+                        int idx = objects.indexOf(renderer.selectedObject);
+                        if (idx == -1 && !objects.isEmpty()) idx = 0;
+                        else idx = (idx + 1) % objects.size();
 
-                    if (!objects.isEmpty()) {
-                        renderer.selectedObject = objects.get(idx);
-                        updateSliders();
+                        if (!objects.isEmpty()) {
+                            renderer.selectedObject = objects.get(idx);
+                            updateSliders();
+                        }
                     }
                 }
             }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                // Rechtsklick-Drag starten (2-Finger auf Trackpad)
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    isDragging = true;
+                    lastMouseX = e.getX();
+                    lastMouseY = e.getY();
+                }
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    isDragging = false;
+                }
+            }
+        });
+
+        glCanvas.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                if (isDragging && SwingUtilities.isRightMouseButton(e)) {
+                    int deltaX = e.getX() - lastMouseX;
+                    int deltaY = e.getY() - lastMouseY;
+
+                    // Yaw (horizontal) und Pitch (vertikal) anpassen
+                    renderer.cameraYaw += deltaX * 0.5f;
+                    renderer.cameraPitch += deltaY * 0.5f;
+
+                    // Pitch begrenzen auf -85 bis 85 Grad (kein Überkippen)
+                    renderer.cameraPitch = Math.max(-85f, Math.min(85f, renderer.cameraPitch));
+
+                    lastMouseX = e.getX();
+                    lastMouseY = e.getY();
+                }
+            }
+        });
+
+        // Mausrad für Zoom
+        glCanvas.addMouseWheelListener(e -> {
+            float scrollAmount = (float) e.getPreciseWheelRotation();
+            renderer.cameraDistance += scrollAmount * 0.5f;
+            // Distanz begrenzen
+            renderer.cameraDistance = Math.max(1f, Math.min(50f, renderer.cameraDistance));
         });
     }
 

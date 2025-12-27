@@ -19,6 +19,9 @@ public class SceneData {
         public Vector3f scale = new Vector3f(1,1,1);
         public Vector3f color = new Vector3f(0.8f, 0.8f, 0.8f);
 
+        // Render-Modus: true = GL_LINES, false = GL_TRIANGLES
+        public boolean isLineMode = false;
+
         // OpenGL IDs
         private int vao, vbo, ebo;
         private boolean initialized = false;
@@ -64,6 +67,27 @@ public class SceneData {
             gl.glBindVertexArray(0);
         }
 
+        public void renderLines(GL2 gl, int shaderId) {
+            if(!initialized) init(gl);
+
+            Matrix4f model = new Matrix4f()
+                    .translate(position)
+                    .rotateX(rotation.x).rotateY(rotation.y).rotateZ(rotation.z)
+                    .scale(scale);
+
+            // Upload Model Matrix
+            int modelLoc = gl.glGetUniformLocation(shaderId, "model");
+            gl.glUniformMatrix4fv(modelLoc, 1, false, model.get(new float[16]), 0);
+
+            // Upload Color
+            int colorLoc = gl.glGetUniformLocation(shaderId, "uColor");
+            gl.glUniform3f(colorLoc, color.x, color.y, color.z);
+
+            gl.glBindVertexArray(vao);
+            gl.glDrawElements(GL2.GL_LINES, indices.length, GL2.GL_UNSIGNED_INT, 0);
+            gl.glBindVertexArray(0);
+        }
+
         private void init(GL2 gl) {
             int[] buffers = new int[3];
             gl.glGenVertexArrays(1, buffers, 0); vao = buffers[0];
@@ -91,6 +115,50 @@ public class SceneData {
     }
 
     // --- Simpler Generator für Standardformen ---
+
+    // Grid für Boden (festes Gitter auf y=0)
+    public static Object3D createGrid(int size, float spacing) {
+        List<Float> verts = new ArrayList<>();
+        List<Integer> inds = new ArrayList<>();
+
+        float halfSize = size * spacing / 2.0f;
+        int index = 0;
+
+        // Linien entlang X-Achse (horizontal)
+        for (int i = -size / 2; i <= size / 2; i++) {
+            float z = i * spacing;
+            // Start-Punkt
+            verts.add(-halfSize); verts.add(0f); verts.add(z);
+            verts.add(0f); verts.add(1f); verts.add(0f); // Normal nach oben
+            // End-Punkt
+            verts.add(halfSize); verts.add(0f); verts.add(z);
+            verts.add(0f); verts.add(1f); verts.add(0f);
+            inds.add(index++);
+            inds.add(index++);
+        }
+
+        // Linien entlang Z-Achse (vertikal)
+        for (int i = -size / 2; i <= size / 2; i++) {
+            float x = i * spacing;
+            // Start-Punkt
+            verts.add(x); verts.add(0f); verts.add(-halfSize);
+            verts.add(0f); verts.add(1f); verts.add(0f);
+            // End-Punkt
+            verts.add(x); verts.add(0f); verts.add(halfSize);
+            verts.add(0f); verts.add(1f); verts.add(0f);
+            inds.add(index++);
+            inds.add(index++);
+        }
+
+        float[] vertArr = new float[verts.size()];
+        for (int i = 0; i < verts.size(); i++) vertArr[i] = verts.get(i);
+        int[] indArr = inds.stream().mapToInt(i -> i).toArray();
+
+        Object3D grid = new Object3D("Grid", vertArr, indArr);
+        grid.color.set(0.4f, 0.4f, 0.4f); // Dezentes Grau
+        return grid;
+    }
+
     public static Object3D createCube() {
         // Würfel mit Normals (vereinfacht, eigentlich müssten Vertices dupliziert werden für harte Kanten)
         // Der Einfachheit halber hier ein simpler Würfel
