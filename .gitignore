@@ -1,0 +1,5 @@
+# Project exclude paths
+/ShapeViewer3D/target/
+
+.idea
+.vscode
