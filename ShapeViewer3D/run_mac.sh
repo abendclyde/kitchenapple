@@ -2,13 +2,14 @@
 
 cd "$(dirname "$0")"
 
+echo "Kompiliere Änderungen..."
+# Dieser Befehl hat gefehlt: Er baut den Java-Code neu!
+mvn clean compile
+
 echo "Baue Classpath..."
 CP="target/classes:$(mvn dependency:build-classpath -q -DincludeScope=runtime -Dmdep.outputFile=/dev/stdout)"
 
 echo "Starte Applikation auf macOS (Apple Silicon)..."
-
-# ÄNDERUNG: -XstartOnFirstThread wurde ENTFERNT!
-# Wir nutzen nur noch die --add-opens Flags, die für moderne Java-Versionen wichtig sind.
 
 java \
   --add-opens java.desktop/sun.awt=ALL-UNNAMED \
