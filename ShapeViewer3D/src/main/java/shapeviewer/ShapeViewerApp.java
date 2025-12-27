@@ -2,8 +2,7 @@ package shapeviewer;
 
 import com.jogamp.opengl.awt.GLCanvas;
 import com.jogamp.opengl.util.FPSAnimator;
-import org.opencv.core.*;
-import org.opencv.imgproc.Imgproc;
+import org.opencv.core.Mat;
 import org.opencv.videoio.VideoCapture;
 
 import javax.swing.*;
@@ -11,7 +10,6 @@ import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -23,34 +21,23 @@ public class ShapeViewerApp extends JFrame {
     private final GLCanvas glCanvas;
 
     // UI Controls
-    private JSlider sldX, sldY, sldZ, sldRotY;
+    private JSlider sldX, sldY, sldRotY;
     private JLabel lblWebcam;
     private boolean webcamRunning = false;
     private Thread webcamThread;
-    private FPSAnimator animator;
 
     public static void main(String[] args) {
-        // OpenCV laden
-        try {
-            nu.pattern.OpenCV.loadLocally();
-        } catch (Throwable t) {
-            // Ignorieren, falls OpenCV fehlt
-        }
+        try { nu.pattern.OpenCV.loadLocally(); } catch (Throwable t) {}
 
-        String os = System.getProperty("os.name").toLowerCase();
-        boolean isMac = os.contains("mac");
-
-        if (isMac) {
-            System.out.println("Starte im macOS-Modus (Main Thread)...");
+        if (System.getProperty("os.name").toLowerCase().contains("mac")) {
             new ShapeViewerApp();
         } else {
-            SwingUtilities.invokeLater(() -> new ShapeViewerApp());
+            SwingUtilities.invokeLater(ShapeViewerApp::new);
         }
     }
 
     public ShapeViewerApp() {
-        // ÄNDERUNG: Neuer Titel zur Überprüfung
-        super("ShapeViewer3D - V2 (Trackpad)");
+        super("ShapeViewer3D - Cleaned");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(1200, 800);
         setLayout(new BorderLayout());
@@ -60,14 +47,10 @@ public class ShapeViewerApp extends JFrame {
         glCanvas = new GLCanvas();
         glCanvas.addGLEventListener(renderer);
 
-        JPanel controlPanel = createControlPanel();
         add(glCanvas, BorderLayout.CENTER);
-        add(controlPanel, BorderLayout.EAST);
+        add(createControlPanel(), BorderLayout.EAST);
 
-        // Demo Objekt hinzufügen
         objects.add(SceneData.createPyramid());
-
-        // ÄNDERUNG: Objekt sofort auswählen, damit Slider funktionieren!
         if (!objects.isEmpty()) {
             renderer.selectedObject = objects.get(0);
             updateSliders();
@@ -77,8 +60,7 @@ public class ShapeViewerApp extends JFrame {
         setLocationRelativeTo(null);
         setVisible(true);
 
-        animator = new FPSAnimator(glCanvas, 60);
-        animator.start();
+        new FPSAnimator(glCanvas, 60).start();
     }
 
     private JPanel createControlPanel() {
@@ -94,7 +76,6 @@ public class ShapeViewerApp extends JFrame {
                 SceneData.Object3D obj = SceneData.loadObj(fc.getSelectedFile());
                 if (obj != null) {
                     objects.add(obj);
-                    // Neues Objekt direkt auswählen
                     renderer.selectedObject = obj;
                     updateSliders();
                 }
@@ -105,9 +86,7 @@ public class ShapeViewerApp extends JFrame {
         btnDelete.addActionListener(e -> {
             if (renderer.selectedObject != null) {
                 objects.remove(renderer.selectedObject);
-                renderer.selectedObject = null;
-                if (!objects.isEmpty())
-                    renderer.selectedObject = objects.get(0);
+                renderer.selectedObject = objects.isEmpty() ? null : objects.get(0);
                 updateSliders();
             }
         });
@@ -120,7 +99,6 @@ public class ShapeViewerApp extends JFrame {
         lblWebcam.setBorder(BorderFactory.createLineBorder(Color.GRAY));
         lblWebcam.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // Slider
         sldX = new JSlider(-50, 50, 0);
         sldY = new JSlider(-50, 50, 0);
         sldRotY = new JSlider(0, 360, 0);
@@ -132,71 +110,42 @@ public class ShapeViewerApp extends JFrame {
                 renderer.selectedObject.rotation.y = (float) Math.toRadians(sldRotY.getValue());
             }
         };
-        sldX.addChangeListener(cl);
-        sldY.addChangeListener(cl);
-        sldRotY.addChangeListener(cl);
+        sldX.addChangeListener(cl); sldY.addChangeListener(cl); sldRotY.addChangeListener(cl);
 
-        panel.add(new JLabel("Aktionen"));
-        panel.add(btnImport);
-        panel.add(Box.createVerticalStrut(5));
-        panel.add(btnDelete);
-        panel.add(Box.createVerticalStrut(15));
-        panel.add(new JLabel("Position X / Y"));
-        panel.add(sldX);
-        panel.add(sldY);
-        panel.add(new JLabel("Rotation Y"));
-        panel.add(sldRotY);
-        panel.add(Box.createVerticalStrut(20));
-        panel.add(btnWebcam);
-        panel.add(lblWebcam);
+        addComponent(panel, new JLabel("Aktionen"), btnImport, Box.createVerticalStrut(5), btnDelete,
+                Box.createVerticalStrut(15), new JLabel("Position X / Y"), sldX, sldY,
+                new JLabel("Rotation Y"), sldRotY, Box.createVerticalStrut(20), btnWebcam, lblWebcam);
 
         return panel;
     }
 
-    // Maus-Variablen
-    private int lastMouseX, lastMouseY;
-    private int pressedMouseX, pressedMouseY;
+    private void addComponent(JPanel p, Component... comps) {
+        for(Component c : comps) p.add(c);
+    }
+
+    private int lastMouseX, lastMouseY, pressedMouseX, pressedMouseY;
     private boolean isDragging = false;
-    private static final int DRAG_THRESHOLD = 5; // Pixel
+    private static final int DRAG_THRESHOLD = 5;
 
     private void setupInteraction() {
         glCanvas.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                // Speichere Start-Position für Drag-Erkennung
-                pressedMouseX = e.getX();
-                pressedMouseY = e.getY();
-                lastMouseX = e.getX();
-                lastMouseY = e.getY();
+                pressedMouseX = lastMouseX = e.getX();
+                pressedMouseY = lastMouseY = e.getY();
                 isDragging = false;
             }
 
             @Override
-            public void mouseReleased(MouseEvent e) {
-                // isDragging bleibt für mouseClicked Prüfung erhalten
-            }
-
-            @Override
             public void mouseClicked(MouseEvent e) {
-                // Nur auswählen, wenn NICHT gezogen wurde (basierend auf Distanz)
                 int dx = Math.abs(e.getX() - pressedMouseX);
                 int dy = Math.abs(e.getY() - pressedMouseY);
-                boolean wasDragged = (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD);
-
-                if (!wasDragged && SwingUtilities.isLeftMouseButton(e)) {
-                    if (!objects.isEmpty()) {
-                        int idx = objects.indexOf(renderer.selectedObject);
-                        if (idx == -1 && !objects.isEmpty())
-                            idx = 0;
-                        else
-                            idx = (idx + 1) % objects.size();
-
-                        if (!objects.isEmpty()) {
-                            renderer.selectedObject = objects.get(idx);
-                            System.out.println("Objekt ausgewählt: " + idx);
-                            updateSliders();
-                        }
-                    }
+                if ((dx <= DRAG_THRESHOLD && dy <= DRAG_THRESHOLD) && SwingUtilities.isLeftMouseButton(e) && !objects.isEmpty()) {
+                    int idx = objects.indexOf(renderer.selectedObject);
+                    // Nächstes Objekt oder erstes, falls keins gefunden
+                    renderer.selectedObject = objects.get((idx + 1) % objects.size());
+                    System.out.println("Objekt ausgewählt: " + renderer.selectedObject.name);
+                    updateSliders();
                 }
                 isDragging = false;
             }
@@ -205,40 +154,25 @@ public class ShapeViewerApp extends JFrame {
         glCanvas.addMouseMotionListener(new MouseMotionAdapter() {
             @Override
             public void mouseDragged(MouseEvent e) {
-                // Erst prüfen ob echtes Dragging (über Schwellwert)
-                int dx = Math.abs(e.getX() - pressedMouseX);
-                int dy = Math.abs(e.getY() - pressedMouseY);
-
-                if (dx > DRAG_THRESHOLD || dy > DRAG_THRESHOLD) {
+                if (Math.abs(e.getX() - pressedMouseX) > DRAG_THRESHOLD || Math.abs(e.getY() - pressedMouseY) > DRAG_THRESHOLD)
                     isDragging = true;
-                }
 
                 if (isDragging) {
-                    int deltaX = e.getX() - lastMouseX;
-                    int deltaY = e.getY() - lastMouseY;
-
-                    renderer.cameraYaw += deltaX * 0.5f;
-                    renderer.cameraPitch += deltaY * 0.5f;
-                    renderer.cameraPitch = Math.max(-85f, Math.min(85f, renderer.cameraPitch));
-
-                    lastMouseX = e.getX();
-                    lastMouseY = e.getY();
+                    renderer.cameraYaw += (e.getX() - lastMouseX) * 0.5f;
+                    renderer.cameraPitch = Math.max(-85f, Math.min(85f, renderer.cameraPitch + (e.getY() - lastMouseY) * 0.5f));
+                    lastMouseX = e.getX(); lastMouseY = e.getY();
                     glCanvas.repaint();
                 }
             }
         });
 
         glCanvas.addMouseWheelListener(e -> {
-            float scrollAmount = (float) e.getPreciseWheelRotation();
-            renderer.cameraDistance += scrollAmount * 0.5f;
-            renderer.cameraDistance = Math.max(1f, Math.min(50f, renderer.cameraDistance));
+            renderer.cameraDistance = Math.max(1f, Math.min(50f, renderer.cameraDistance + (float)e.getPreciseWheelRotation() * 0.5f));
         });
     }
 
     private void updateSliders() {
         if (renderer.selectedObject != null) {
-            // Slider Updates blockieren Listener temporär nicht nötig da set logic einfach
-            // ist
             sldX.setValue((int) (renderer.selectedObject.position.x * 10));
             sldY.setValue((int) (renderer.selectedObject.position.y * 10));
             sldRotY.setValue((int) Math.toDegrees(renderer.selectedObject.rotation.y));
@@ -246,9 +180,8 @@ public class ShapeViewerApp extends JFrame {
     }
 
     private void toggleWebcam() {
-        if (webcamRunning) {
-            webcamRunning = false;
-        } else {
+        if (webcamRunning) webcamRunning = false;
+        else {
             webcamRunning = true;
             webcamThread = new Thread(this::webcamLoop);
             webcamThread.start();
@@ -256,45 +189,31 @@ public class ShapeViewerApp extends JFrame {
     }
 
     private void webcamLoop() {
-        // Stark vereinfachter Loop für Stabilität
         VideoCapture capture = new VideoCapture(0);
-        if (!capture.isOpened())
-            capture = new VideoCapture(1);
+        if (!capture.isOpened()) capture = new VideoCapture(1);
 
         if (!capture.isOpened()) {
             System.err.println("Keine Webcam gefunden.");
-            webcamRunning = false;
-            return;
+            webcamRunning = false; return;
         }
 
         Mat frame = new Mat();
         while (webcamRunning) {
-            capture.read(frame);
-            if (!frame.empty()) {
+            if (capture.read(frame) && !frame.empty()) {
                 BufferedImage img = matToImage(frame);
-                SwingUtilities.invokeLater(() -> {
-                    if (lblWebcam != null)
-                        lblWebcam.setIcon(new ImageIcon(img));
-                });
+                SwingUtilities.invokeLater(() -> lblWebcam.setIcon(new ImageIcon(img)));
             }
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-            }
+            try { Thread.sleep(50); } catch (InterruptedException e) {}
         }
         capture.release();
     }
 
     private BufferedImage matToImage(Mat m) {
-        int type = BufferedImage.TYPE_3BYTE_BGR;
-        if (m.channels() == 1)
-            type = BufferedImage.TYPE_BYTE_GRAY;
-        int bufferSize = m.channels() * m.cols() * m.rows();
-        byte[] b = new byte[bufferSize];
+        int type = (m.channels() > 1) ? BufferedImage.TYPE_3BYTE_BGR : BufferedImage.TYPE_BYTE_GRAY;
+        byte[] b = new byte[m.channels() * m.cols() * m.rows()];
         m.get(0, 0, b);
         BufferedImage image = new BufferedImage(m.cols(), m.rows(), type);
-        final byte[] targetPixels = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
-        System.arraycopy(b, 0, targetPixels, 0, b.length);
+        System.arraycopy(b, 0, ((DataBufferByte) image.getRaster().getDataBuffer()).getData(), 0, b.length);
         return image;
     }
 }

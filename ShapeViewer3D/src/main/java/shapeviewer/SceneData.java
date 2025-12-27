@@ -7,26 +7,20 @@ import java.io.*;
 import java.nio.*;
 import java.util.*;
 
-// Kombiniert Mesh, Object3D und OBJLoader
 public class SceneData {
 
     public static class Object3D {
         public String name;
-        public float[] vertices; // x,y,z, nx,ny,nz interlocked
+        public float[] vertices;
         public int[] indices;
         public Vector3f position = new Vector3f(0, 0, 0);
         public Vector3f rotation = new Vector3f(0, 0, 0);
         public Vector3f scale = new Vector3f(1, 1, 1);
         public Vector3f color = new Vector3f(0.8f, 0.8f, 0.8f);
-
-        // Render-Modus: true = GL_LINES, false = GL_TRIANGLES
         public boolean isLineMode = false;
 
-        // OpenGL IDs
         private int vao, vbo, ebo;
         private boolean initialized = false;
-
-        // Bounding Box (vereinfacht)
         public Vector3f min = new Vector3f();
         public Vector3f max = new Vector3f();
 
@@ -41,63 +35,34 @@ public class SceneData {
             min.set(Float.MAX_VALUE);
             max.set(-Float.MAX_VALUE);
             for (int i = 0; i < vertices.length; i += 6) {
-                float x = vertices[i], y = vertices[i + 1], z = vertices[i + 2];
-                if (x < min.x)
-                    min.x = x;
-                if (y < min.y)
-                    min.y = y;
-                if (z < min.z)
-                    min.z = z;
-                if (x > max.x)
-                    max.x = x;
-                if (y > max.y)
-                    max.y = y;
-                if (z > max.z)
-                    max.z = z;
+                float x = vertices[i], y = vertices[i+1], z = vertices[i+2];
+                min.x = Math.min(min.x, x); min.y = Math.min(min.y, y); min.z = Math.min(min.z, z);
+                max.x = Math.max(max.x, x); max.y = Math.max(max.y, y); max.z = Math.max(max.z, z);
             }
         }
 
         public void render(GL2 gl, int shaderId) {
-            if (!initialized)
-                init(gl);
-
-            Matrix4f model = new Matrix4f()
-                    .translate(position)
-                    .rotateX(rotation.x).rotateY(rotation.y).rotateZ(rotation.z)
-                    .scale(scale);
-
-            // Upload Model Matrix
-            int modelLoc = gl.glGetUniformLocation(shaderId, "model");
-            gl.glUniformMatrix4fv(modelLoc, 1, false, model.get(new float[16]), 0);
-
-            // Upload Color
-            int colorLoc = gl.glGetUniformLocation(shaderId, "uColor");
-            gl.glUniform3f(colorLoc, color.x, color.y, color.z);
-
-            gl.glBindVertexArray(vao);
-            gl.glDrawElements(GL2.GL_TRIANGLES, indices.length, GL2.GL_UNSIGNED_INT, 0);
-            gl.glBindVertexArray(0);
+            draw(gl, shaderId, GL2.GL_TRIANGLES);
         }
 
         public void renderLines(GL2 gl, int shaderId) {
-            if (!initialized)
-                init(gl);
+            draw(gl, shaderId, GL2.GL_LINES);
+        }
+
+        // Refactoring: Gemeinsame Logik für Render und RenderLines
+        private void draw(GL2 gl, int shaderId, int drawMode) {
+            if (!initialized) init(gl);
 
             Matrix4f model = new Matrix4f()
                     .translate(position)
                     .rotateX(rotation.x).rotateY(rotation.y).rotateZ(rotation.z)
                     .scale(scale);
 
-            // Upload Model Matrix
-            int modelLoc = gl.glGetUniformLocation(shaderId, "model");
-            gl.glUniformMatrix4fv(modelLoc, 1, false, model.get(new float[16]), 0);
-
-            // Upload Color
-            int colorLoc = gl.glGetUniformLocation(shaderId, "uColor");
-            gl.glUniform3f(colorLoc, color.x, color.y, color.z);
+            gl.glUniformMatrix4fv(gl.glGetUniformLocation(shaderId, "model"), 1, false, model.get(new float[16]), 0);
+            gl.glUniform3f(gl.glGetUniformLocation(shaderId, "uColor"), color.x, color.y, color.z);
 
             gl.glBindVertexArray(vao);
-            gl.glDrawElements(GL2.GL_LINES, indices.length, GL2.GL_UNSIGNED_INT, 0);
+            gl.glDrawElements(drawMode, indices.length, GL2.GL_UNSIGNED_INT, 0);
             gl.glBindVertexArray(0);
         }
 
@@ -112,102 +77,49 @@ public class SceneData {
             gl.glBindVertexArray(vao);
 
             gl.glBindBuffer(GL2.GL_ARRAY_BUFFER, vbo);
-            FloatBuffer vb = FloatBuffer.wrap(vertices);
-            gl.glBufferData(GL2.GL_ARRAY_BUFFER, (long) vertices.length * 4, vb, GL2.GL_STATIC_DRAW);
+            gl.glBufferData(GL2.GL_ARRAY_BUFFER, (long) vertices.length * 4, FloatBuffer.wrap(vertices), GL2.GL_STATIC_DRAW);
 
             gl.glBindBuffer(GL2.GL_ELEMENT_ARRAY_BUFFER, ebo);
-            IntBuffer ib = IntBuffer.wrap(indices);
-            gl.glBufferData(GL2.GL_ELEMENT_ARRAY_BUFFER, (long) indices.length * 4, ib, GL2.GL_STATIC_DRAW);
+            gl.glBufferData(GL2.GL_ELEMENT_ARRAY_BUFFER, (long) indices.length * 4, IntBuffer.wrap(indices), GL2.GL_STATIC_DRAW);
 
-            // Pos (0) + Normal (1)
             gl.glEnableVertexAttribArray(0);
-            gl.glVertexAttribPointer(0, 3, GL2.GL_FLOAT, false, 6 * 4, 0);
+            gl.glVertexAttribPointer(0, 3, GL2.GL_FLOAT, false, 6 * 4, 0); // Pos
             gl.glEnableVertexAttribArray(1);
-            gl.glVertexAttribPointer(1, 3, GL2.GL_FLOAT, false, 6 * 4, 3 * 4);
+            gl.glVertexAttribPointer(1, 3, GL2.GL_FLOAT, false, 6 * 4, 3 * 4); // Normal
 
             gl.glBindVertexArray(0);
             initialized = true;
         }
     }
 
-    // --- Simpler Generator für Standardformen ---
-
-    // Grid für Boden (festes Gitter auf y=0)
     public static Object3D createGrid(int size, float spacing) {
         List<Float> verts = new ArrayList<>();
         List<Integer> inds = new ArrayList<>();
-
         float halfSize = size * spacing / 2.0f;
-        int index = 0;
+        int idx = 0;
 
-        // Linien entlang X-Achse (horizontal)
         for (int i = -size / 2; i <= size / 2; i++) {
-            float z = i * spacing;
-            // Start-Punkt
-            verts.add(-halfSize);
-            verts.add(0f);
-            verts.add(z);
-            verts.add(0f);
-            verts.add(1f);
-            verts.add(0f); // Normal nach oben
-            // End-Punkt
-            verts.add(halfSize);
-            verts.add(0f);
-            verts.add(z);
-            verts.add(0f);
-            verts.add(1f);
-            verts.add(0f);
-            inds.add(index++);
-            inds.add(index++);
+            float p = i * spacing;
+            // X-Achse
+            Collections.addAll(verts, -halfSize, 0f, p, 0f, 1f, 0f);
+            Collections.addAll(verts, halfSize, 0f, p, 0f, 1f, 0f);
+            inds.add(idx++); inds.add(idx++);
+            // Z-Achse
+            Collections.addAll(verts, p, 0f, -halfSize, 0f, 1f, 0f);
+            Collections.addAll(verts, p, 0f, halfSize, 0f, 1f, 0f);
+            inds.add(idx++); inds.add(idx++);
         }
 
-        // Linien entlang Z-Achse (vertikal)
-        for (int i = -size / 2; i <= size / 2; i++) {
-            float x = i * spacing;
-            // Start-Punkt
-            verts.add(x);
-            verts.add(0f);
-            verts.add(-halfSize);
-            verts.add(0f);
-            verts.add(1f);
-            verts.add(0f);
-            // End-Punkt
-            verts.add(x);
-            verts.add(0f);
-            verts.add(halfSize);
-            verts.add(0f);
-            verts.add(1f);
-            verts.add(0f);
-            inds.add(index++);
-            inds.add(index++);
-        }
+        float[] vArr = new float[verts.size()];
+        for (int i=0; i<verts.size(); i++) vArr[i] = verts.get(i);
+        int[] iArr = inds.stream().mapToInt(i->i).toArray();
 
-        float[] vertArr = new float[verts.size()];
-        for (int i = 0; i < verts.size(); i++)
-            vertArr[i] = verts.get(i);
-        int[] indArr = inds.stream().mapToInt(i -> i).toArray();
-
-        Object3D grid = new Object3D("Grid", vertArr, indArr);
-        grid.color.set(0.4f, 0.4f, 0.4f); // Dezentes Grau
+        Object3D grid = new Object3D("Grid", vArr, iArr);
+        grid.color.set(0.4f, 0.4f, 0.4f);
         return grid;
     }
 
-    public static Object3D createCube() {
-        // Würfel mit Normals (vereinfacht, eigentlich müssten Vertices dupliziert
-        // werden für harte Kanten)
-        // Der Einfachheit halber hier ein simpler Würfel
-        float[] v = {
-                -0.5f, -0.5f, 0.5f, 0, 0, 1, 0.5f, -0.5f, 0.5f, 0, 0, 1, 0.5f, 0.5f, 0.5f, 0, 0, 1, -0.5f, 0.5f, 0.5f,
-                0, 0, 1, // Front
-                -0.5f, -0.5f, -0.5f, 0, 0, -1, -0.5f, 0.5f, -0.5f, 0, 0, -1, 0.5f, 0.5f, -0.5f, 0, 0, -1, 0.5f, -0.5f,
-                -0.5f, 0, 0, -1 // Back
-        };
-        // Indizes sind hier stark vereinfacht für das Beispiel. Für korrekte
-        // Beleuchtung braucht man 24 Vertices.
-        // Wir nutzen hier einen kleinen Hack: Load OBJ ist besser.
-        // Dies ist ein Platzhalter. Besser ist createPyramid unten.
-        return createPyramid();
-    }
+    // createCube entfernt, da redundant/irreführend.
 
     public static Object3D createPyramid() {
         float[] v = {
@@ -218,66 +130,46 @@ public class SceneData {
                 -0.5f, 0, 0.5f, 0, -1, 0, 0.5f, 0, 0.5f, 0, -1, 0, 0.5f, 0, -0.5f, 0, -1, 0, // Bottom 1
                 -0.5f, 0, 0.5f, 0, -1, 0, 0.5f, 0, -0.5f, 0, -1, 0, -0.5f, 0, -0.5f, 0, -1, 0 // Bottom 2
         };
-        int[] i = {
-                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17
-        };
+        int[] i = { 0,1,2, 3,4,5, 6,7,8, 9,10,11, 12,13,14, 15,16,17 };
         Object3D obj = new Object3D("Pyramid", v, i);
         obj.color.set(1.0f, 0.5f, 0.0f);
         return obj;
     }
 
-    // Minimalistischer OBJ Loader direkt integriert
     public static Object3D loadObj(File file) {
-        List<Float> v = new ArrayList<>();
-        List<Float> vn = new ArrayList<>();
-        List<Float> buffer = new ArrayList<>();
+        List<Float> v = new ArrayList<>(), vn = new ArrayList<>(), buffer = new ArrayList<>();
         List<Integer> indices = new ArrayList<>();
 
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String line;
             while ((line = br.readLine()) != null) {
-                String[] p = line.split("\\s+");
+                String[] p = line.trim().split("\\s+");
+                if (p.length == 0) continue;
+
                 if (p[0].equals("v")) {
-                    v.add(Float.valueOf(p[1]));
-                    v.add(Float.valueOf(p[2]));
-                    v.add(Float.valueOf(p[3]));
+                    v.add(Float.valueOf(p[1])); v.add(Float.valueOf(p[2])); v.add(Float.valueOf(p[3]));
                 } else if (p[0].equals("vn")) {
-                    vn.add(Float.valueOf(p[1]));
-                    vn.add(Float.valueOf(p[2]));
-                    vn.add(Float.valueOf(p[3]));
+                    vn.add(Float.valueOf(p[1])); vn.add(Float.valueOf(p[2])); vn.add(Float.valueOf(p[3]));
                 } else if (p[0].equals("f")) {
-                    // Sehr einfacher Triangulator (nimmt an, es sind Dreiecke oder Quads)
                     for (int k = 1; k <= 3; k++) {
                         String[] fv = p[k].split("/");
                         int vi = Integer.parseInt(fv[0]) - 1;
-                        int ni = fv.length > 2 && !fv[2].isEmpty() ? Integer.parseInt(fv[2]) - 1 : 0;
+                        int ni = fv.length > 2 && !fv[2].isEmpty() ? Integer.parseInt(fv[2]) - 1 : -1;
 
-                        buffer.add(v.get(vi * 3));
-                        buffer.add(v.get(vi * 3 + 1));
-                        buffer.add(v.get(vi * 3 + 2));
-                        if (!vn.isEmpty() && ni < vn.size() / 3) {
-                            buffer.add(vn.get(ni * 3));
-                            buffer.add(vn.get(ni * 3 + 1));
-                            buffer.add(vn.get(ni * 3 + 2));
+                        buffer.add(v.get(vi * 3)); buffer.add(v.get(vi * 3 + 1)); buffer.add(v.get(vi * 3 + 2));
+                        if (ni >= 0 && ni < vn.size()/3) {
+                            buffer.add(vn.get(ni * 3)); buffer.add(vn.get(ni * 3 + 1)); buffer.add(vn.get(ni * 3 + 2));
                         } else {
-                            buffer.add(0f);
-                            buffer.add(1f);
-                            buffer.add(0f); // Default normal
+                            buffer.add(0f); buffer.add(1f); buffer.add(0f);
                         }
                         indices.add(indices.size());
                     }
                 }
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
+        } catch (Exception e) { e.printStackTrace(); return null; }
 
         float[] vertArr = new float[buffer.size()];
-        for (int i = 0; i < buffer.size(); i++)
-            vertArr[i] = buffer.get(i);
-        int[] indArr = indices.stream().mapToInt(i -> i).toArray();
-
-        return new Object3D(file.getName(), vertArr, indArr);
+        for (int i=0; i<buffer.size(); i++) vertArr[i] = buffer.get(i);
+        return new Object3D(file.getName(), vertArr, indices.stream().mapToInt(i->i).toArray());
     }
 }
