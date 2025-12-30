@@ -115,7 +115,7 @@ public class SceneData {
         int[] iArr = inds.stream().mapToInt(i->i).toArray();
 
         Object3D grid = new Object3D("Grid", vArr, iArr);
-        grid.color.set(0.4f, 0.4f, 0.4f);
+        grid.color.set(0.25f, 0.28f, 0.35f);
         return grid;
     }
 
@@ -133,6 +133,203 @@ public class SceneData {
         int[] i = { 0,1,2, 3,4,5, 6,7,8, 9,10,11, 12,13,14, 15,16,17 };
         Object3D obj = new Object3D("Pyramid", v, i);
         obj.color.set(1.0f, 0.5f, 0.0f);
+        return obj;
+    }
+
+    public static Object3D createCube() {
+        float[] v = {
+            // Front face
+            -0.5f, -0.5f,  0.5f,  0, 0, 1,   0.5f, -0.5f,  0.5f,  0, 0, 1,   0.5f,  0.5f,  0.5f,  0, 0, 1,
+            -0.5f, -0.5f,  0.5f,  0, 0, 1,   0.5f,  0.5f,  0.5f,  0, 0, 1,  -0.5f,  0.5f,  0.5f,  0, 0, 1,
+            // Back face
+            -0.5f, -0.5f, -0.5f,  0, 0,-1,  -0.5f,  0.5f, -0.5f,  0, 0,-1,   0.5f,  0.5f, -0.5f,  0, 0,-1,
+            -0.5f, -0.5f, -0.5f,  0, 0,-1,   0.5f,  0.5f, -0.5f,  0, 0,-1,   0.5f, -0.5f, -0.5f,  0, 0,-1,
+            // Top face
+            -0.5f,  0.5f, -0.5f,  0, 1, 0,  -0.5f,  0.5f,  0.5f,  0, 1, 0,   0.5f,  0.5f,  0.5f,  0, 1, 0,
+            -0.5f,  0.5f, -0.5f,  0, 1, 0,   0.5f,  0.5f,  0.5f,  0, 1, 0,   0.5f,  0.5f, -0.5f,  0, 1, 0,
+            // Bottom face
+            -0.5f, -0.5f, -0.5f,  0,-1, 0,   0.5f, -0.5f, -0.5f,  0,-1, 0,   0.5f, -0.5f,  0.5f,  0,-1, 0,
+            -0.5f, -0.5f, -0.5f,  0,-1, 0,   0.5f, -0.5f,  0.5f,  0,-1, 0,  -0.5f, -0.5f,  0.5f,  0,-1, 0,
+            // Right face
+             0.5f, -0.5f, -0.5f,  1, 0, 0,   0.5f,  0.5f, -0.5f,  1, 0, 0,   0.5f,  0.5f,  0.5f,  1, 0, 0,
+             0.5f, -0.5f, -0.5f,  1, 0, 0,   0.5f,  0.5f,  0.5f,  1, 0, 0,   0.5f, -0.5f,  0.5f,  1, 0, 0,
+            // Left face
+            -0.5f, -0.5f, -0.5f, -1, 0, 0,  -0.5f, -0.5f,  0.5f, -1, 0, 0,  -0.5f,  0.5f,  0.5f, -1, 0, 0,
+            -0.5f, -0.5f, -0.5f, -1, 0, 0,  -0.5f,  0.5f,  0.5f, -1, 0, 0,  -0.5f,  0.5f, -0.5f, -1, 0, 0,
+        };
+        int[] indices = new int[36];
+        for (int i = 0; i < 36; i++) indices[i] = i;
+        Object3D obj = new Object3D("Cube", v, indices);
+        obj.color.set(0.3f, 0.6f, 1.0f);
+        return obj;
+    }
+
+    public static Object3D createSphere(int segments, int rings) {
+        List<Float> verts = new ArrayList<>();
+        List<Integer> inds = new ArrayList<>();
+
+        for (int y = 0; y <= rings; y++) {
+            float v = (float) y / rings;
+            float phi = (float) (v * Math.PI);
+
+            for (int x = 0; x <= segments; x++) {
+                float u = (float) x / segments;
+                float theta = (float) (u * 2 * Math.PI);
+
+                float px = (float) (Math.cos(theta) * Math.sin(phi)) * 0.5f;
+                float py = (float) Math.cos(phi) * 0.5f;
+                float pz = (float) (Math.sin(theta) * Math.sin(phi)) * 0.5f;
+
+                float nx = px * 2, ny = py * 2, nz = pz * 2;
+                float len = (float) Math.sqrt(nx*nx + ny*ny + nz*nz);
+                nx /= len; ny /= len; nz /= len;
+
+                Collections.addAll(verts, px, py, pz, nx, ny, nz);
+            }
+        }
+
+        for (int y = 0; y < rings; y++) {
+            for (int x = 0; x < segments; x++) {
+                int i0 = y * (segments + 1) + x;
+                int i1 = i0 + 1;
+                int i2 = i0 + (segments + 1);
+                int i3 = i2 + 1;
+
+                inds.add(i0); inds.add(i2); inds.add(i1);
+                inds.add(i1); inds.add(i2); inds.add(i3);
+            }
+        }
+
+        float[] vArr = new float[verts.size()];
+        for (int i = 0; i < verts.size(); i++) vArr[i] = verts.get(i);
+        int[] iArr = inds.stream().mapToInt(i -> i).toArray();
+
+        Object3D obj = new Object3D("Sphere", vArr, iArr);
+        obj.color.set(0.2f, 0.8f, 0.4f);
+        return obj;
+    }
+
+    public static Object3D createCylinder(int segments) {
+        List<Float> verts = new ArrayList<>();
+        List<Integer> inds = new ArrayList<>();
+        float radius = 0.5f, height = 1.0f;
+        int idx = 0;
+
+        // Side vertices
+        for (int i = 0; i <= segments; i++) {
+            float theta = (float) (i * 2 * Math.PI / segments);
+            float x = (float) Math.cos(theta) * radius;
+            float z = (float) Math.sin(theta) * radius;
+            float nx = (float) Math.cos(theta), nz = (float) Math.sin(theta);
+
+            Collections.addAll(verts, x, -height/2, z, nx, 0f, nz); // Bottom
+            Collections.addAll(verts, x, height/2, z, nx, 0f, nz);  // Top
+        }
+
+        // Side indices
+        for (int i = 0; i < segments; i++) {
+            int b0 = i * 2, b1 = b0 + 1, b2 = b0 + 2, b3 = b0 + 3;
+            inds.add(b0); inds.add(b2); inds.add(b1);
+            inds.add(b1); inds.add(b2); inds.add(b3);
+        }
+        idx = (segments + 1) * 2;
+
+        // Top cap center
+        int topCenter = idx;
+        Collections.addAll(verts, 0f, height/2, 0f, 0f, 1f, 0f);
+        idx++;
+
+        for (int i = 0; i <= segments; i++) {
+            float theta = (float) (i * 2 * Math.PI / segments);
+            float x = (float) Math.cos(theta) * radius;
+            float z = (float) Math.sin(theta) * radius;
+            Collections.addAll(verts, x, height/2, z, 0f, 1f, 0f);
+            if (i > 0) {
+                inds.add(topCenter); inds.add(idx - 1); inds.add(idx);
+            }
+            idx++;
+        }
+
+        // Bottom cap center
+        int botCenter = idx;
+        Collections.addAll(verts, 0f, -height/2, 0f, 0f, -1f, 0f);
+        idx++;
+
+        for (int i = 0; i <= segments; i++) {
+            float theta = (float) (i * 2 * Math.PI / segments);
+            float x = (float) Math.cos(theta) * radius;
+            float z = (float) Math.sin(theta) * radius;
+            Collections.addAll(verts, x, -height/2, z, 0f, -1f, 0f);
+            if (i > 0) {
+                inds.add(botCenter); inds.add(idx); inds.add(idx - 1);
+            }
+            idx++;
+        }
+
+        float[] vArr = new float[verts.size()];
+        for (int i = 0; i < verts.size(); i++) vArr[i] = verts.get(i);
+        int[] iArr = inds.stream().mapToInt(i -> i).toArray();
+
+        Object3D obj = new Object3D("Cylinder", vArr, iArr);
+        obj.color.set(0.8f, 0.3f, 0.6f);
+        return obj;
+    }
+
+    public static Object3D createTorus(int segments, int rings) {
+        List<Float> verts = new ArrayList<>();
+        List<Integer> inds = new ArrayList<>();
+        float R = 0.35f; // Major radius
+        float r = 0.15f; // Minor radius
+
+        for (int i = 0; i <= rings; i++) {
+            float u = (float) (i * 2 * Math.PI / rings);
+            float cosU = (float) Math.cos(u), sinU = (float) Math.sin(u);
+
+            for (int j = 0; j <= segments; j++) {
+                float v = (float) (j * 2 * Math.PI / segments);
+                float cosV = (float) Math.cos(v), sinV = (float) Math.sin(v);
+
+                float x = (R + r * cosV) * cosU;
+                float y = r * sinV;
+                float z = (R + r * cosV) * sinU;
+
+                float nx = cosV * cosU;
+                float ny = sinV;
+                float nz = cosV * sinU;
+
+                Collections.addAll(verts, x, y, z, nx, ny, nz);
+            }
+        }
+
+        for (int i = 0; i < rings; i++) {
+            for (int j = 0; j < segments; j++) {
+                int i0 = i * (segments + 1) + j;
+                int i1 = i0 + 1;
+                int i2 = i0 + (segments + 1);
+                int i3 = i2 + 1;
+
+                inds.add(i0); inds.add(i2); inds.add(i1);
+                inds.add(i1); inds.add(i2); inds.add(i3);
+            }
+        }
+
+        float[] vArr = new float[verts.size()];
+        for (int i = 0; i < verts.size(); i++) vArr[i] = verts.get(i);
+        int[] iArr = inds.stream().mapToInt(i -> i).toArray();
+
+        Object3D obj = new Object3D("Torus", vArr, iArr);
+        obj.color.set(0.9f, 0.7f, 0.2f);
+        return obj;
+    }
+
+    public static Object3D createPlane() {
+        float[] v = {
+            -1f, 0f, -1f,  0, 1, 0,   1f, 0f, -1f,  0, 1, 0,   1f, 0f,  1f,  0, 1, 0,
+            -1f, 0f, -1f,  0, 1, 0,   1f, 0f,  1f,  0, 1, 0,  -1f, 0f,  1f,  0, 1, 0,
+        };
+        int[] indices = {0, 1, 2, 3, 4, 5};
+        Object3D obj = new Object3D("Plane", v, indices);
+        obj.color.set(0.5f, 0.5f, 0.5f);
         return obj;
     }
 

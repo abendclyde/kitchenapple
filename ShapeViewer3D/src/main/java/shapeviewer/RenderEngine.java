@@ -39,7 +39,8 @@ public class RenderEngine implements GLEventListener {
         GL2 gl = drawable.getGL().getGL2();
         gl.glEnable(GL2.GL_DEPTH_TEST);
         gl.glDepthFunc(GL2.GL_LEQUAL);
-        gl.glClearColor(0.2f, 0.2f, 0.25f, 1.0f);
+        // Moderner dunkler Hintergrund mit leichtem Blauton
+        gl.glClearColor(0.12f, 0.12f, 0.15f, 1.0f);
 
         String vShader = """
                     #version 120
@@ -56,13 +57,32 @@ public class RenderEngine implements GLEventListener {
         String fShader = """
                     #version 120
                     varying vec3 Normal; varying vec3 FragPos;
-                    uniform vec3 uColor; uniform vec3 lightPos; uniform int isSelected;
+                    uniform vec3 uColor; uniform vec3 lightPos; uniform vec3 viewPos;
+                    uniform int isSelected;
                     void main() {
                         vec3 norm = normalize(Normal);
                         vec3 lightDir = normalize(lightPos - FragPos);
-                        float diff = max(dot(norm, lightDir), 0.2);
-                        vec3 result = diff * uColor;
-                        if(isSelected == 1) result += vec3(0.2, 0.2, 0.0);
+                        
+                        // Ambient
+                        float ambient = 0.15;
+                        
+                        // Diffuse
+                        float diff = max(dot(norm, lightDir), 0.0);
+                        
+                        // Specular (Blinn-Phong)
+                        vec3 viewDir = normalize(viewPos - FragPos);
+                        vec3 halfDir = normalize(lightDir + viewDir);
+                        float spec = pow(max(dot(norm, halfDir), 0.0), 32.0);
+                        
+                        vec3 result = (ambient + diff * 0.7 + spec * 0.3) * uColor;
+                        
+                        // Auswahl-Highlight: goldener Rand-Effekt
+                        if(isSelected == 1) {
+                            float rim = 1.0 - max(dot(viewDir, norm), 0.0);
+                            rim = pow(rim, 2.0);
+                            result += vec3(1.0, 0.8, 0.2) * rim * 0.5;
+                        }
+                        
                         gl_FragColor = vec4(result, 1.0);
                     }
                 """;
@@ -80,12 +100,14 @@ public class RenderEngine implements GLEventListener {
         int h = drawable.getSurfaceHeight();
         float aspect = (float) w / h;
 
+        Vector3f camPos = calculateCameraPosition();
         Matrix4f proj = new Matrix4f().perspective((float) Math.toRadians(fov), aspect, 0.1f, 100f);
-        Matrix4f view = new Matrix4f().lookAt(calculateCameraPosition(), camTarget, new Vector3f(0, 1, 0));
+        Matrix4f view = new Matrix4f().lookAt(camPos, camTarget, new Vector3f(0, 1, 0));
 
         gl.glUniformMatrix4fv(gl.glGetUniformLocation(programId, "projection"), 1, false, proj.get(new float[16]), 0);
         gl.glUniformMatrix4fv(gl.glGetUniformLocation(programId, "view"), 1, false, view.get(new float[16]), 0);
-        gl.glUniform3f(gl.glGetUniformLocation(programId, "lightPos"), 5, 5, 5);
+        gl.glUniform3f(gl.glGetUniformLocation(programId, "lightPos"), 5, 8, 5);
+        gl.glUniform3f(gl.glGetUniformLocation(programId, "viewPos"), camPos.x, camPos.y, camPos.z);
 
         // Grid rendern
         gl.glUniform1i(gl.glGetUniformLocation(programId, "isSelected"), 0);
