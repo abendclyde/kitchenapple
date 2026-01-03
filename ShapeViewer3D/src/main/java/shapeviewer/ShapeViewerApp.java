@@ -2,7 +2,9 @@ package shapeviewer;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
-import com.jogamp.opengl.awt.GLCanvas;
+import com.jogamp.opengl.GLCapabilities;
+import com.jogamp.opengl.GLProfile;
+import com.jogamp.opengl.awt.GLJPanel;
 import com.jogamp.opengl.util.FPSAnimator;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -24,7 +26,7 @@ public class ShapeViewerApp extends JFrame {
 
     private final List<SceneData.Object3D> objects = Collections.synchronizedList(new ArrayList<>());
     private final RenderEngine renderer;
-    private final GLCanvas glCanvas;
+    private final GLJPanel glCanvas;
     private final DefaultListModel<SceneData.Object3D> listModel;
     private final JList<SceneData.Object3D> objectList;
 
@@ -32,6 +34,14 @@ public class ShapeViewerApp extends JFrame {
     private JLabel lblWebcam;
     private boolean webcamRunning = false;
     private Thread webcamThread;
+    private static boolean opencvAvailable = false;
+
+    // Formerkennung
+    private ShapeDetector shapeDetector;
+    private boolean shapeDetectionEnabled = true;
+    private long lastShapeDetectionTime = 0;
+    private static final long SHAPE_DETECTION_COOLDOWN = 3000; // 3 Sekunden Cooldown
+    private volatile boolean dialogOpen = false;
 
     // Drag & Drop für Objekte
     private SceneData.Object3D draggedObject = null;
@@ -41,13 +51,21 @@ public class ShapeViewerApp extends JFrame {
     private static final int DRAG_THRESHOLD = 5;
 
     public static void main(String[] args) {
+
         // FlatLaf Dark Theme aktivieren
         FlatDarkLaf.setup();
         UIManager.put("Button.arc", 8);
         UIManager.put("Component.arc", 8);
         UIManager.put("TextComponent.arc", 8);
 
-        try { nu.pattern.OpenCV.loadLocally(); } catch (Throwable t) {}
+        try {
+            nu.pattern.OpenCV.loadLocally();
+            opencvAvailable = true;
+            System.out.println("[INFO] OpenCV erfolgreich geladen.");
+        } catch (Throwable t) {
+            opencvAvailable = false;
+            System.err.println("[WARN] OpenCV konnte nicht geladen werden: " + t.getMessage());
+        }
 
         if (System.getProperty("os.name").toLowerCase().contains("mac")) {
             new ShapeViewerApp();
@@ -64,9 +82,21 @@ public class ShapeViewerApp extends JFrame {
 
         getContentPane().setBackground(new Color(30, 30, 30));
 
+        // ShapeDetector initialisieren
+        if (opencvAvailable) {
+            shapeDetector = new ShapeDetector();
+        }
+
         System.out.println("[INFO] Initialisiere OpenGL...");
         renderer = new RenderEngine(objects);
-        glCanvas = new GLCanvas();
+
+        // Explizite GLCapabilities-Konfiguration für bessere Kompatibilität
+        GLProfile glProfile = GLProfile.getDefault();
+        GLCapabilities glCapabilities = new GLCapabilities(glProfile);
+        glCapabilities.setDoubleBuffered(true);
+        glCapabilities.setHardwareAccelerated(true);
+
+        glCanvas = new GLJPanel(glCapabilities);
         glCanvas.addGLEventListener(renderer);
 
         listModel = new DefaultListModel<>();
@@ -245,7 +275,7 @@ public class ShapeViewerApp extends JFrame {
 
     private JPanel createSidePanel() {
         JPanel sidePanel = new JPanel(new BorderLayout(0, 10));
-        sidePanel.setPreferredSize(new Dimension(200, 0));
+        sidePanel.setPreferredSize(new Dimension(280, 0));
         sidePanel.setBackground(new Color(35, 35, 40));
         sidePanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
@@ -266,18 +296,30 @@ public class ShapeViewerApp extends JFrame {
         JPanel webcamPanel = new JPanel(new BorderLayout(0, 5));
         webcamPanel.setOpaque(false);
 
-        JLabel lblWebcamTitle = new JLabel("Webcam");
+        JLabel lblWebcamTitle = new JLabel("Webcam & Formerkennung");
         lblWebcamTitle.setFont(new Font("SansSerif", Font.BOLD, 12));
         lblWebcamTitle.setForeground(new Color(150, 150, 150));
 
         lblWebcam = new JLabel("Aus", SwingConstants.CENTER);
-        lblWebcam.setPreferredSize(new Dimension(180, 135));
+        lblWebcam.setPreferredSize(new Dimension(260, 195));
         lblWebcam.setBackground(new Color(25, 25, 30));
         lblWebcam.setForeground(new Color(100, 100, 100));
         lblWebcam.setOpaque(true);
         lblWebcam.setBorder(BorderFactory.createLineBorder(new Color(60, 60, 65)));
 
-        webcamPanel.add(lblWebcamTitle, BorderLayout.NORTH);
+        // Toggle-Button für Formerkennung
+        JCheckBox chkShapeDetection = new JCheckBox("Formerkennung aktiv", shapeDetectionEnabled);
+        chkShapeDetection.setFont(new Font("SansSerif", Font.PLAIN, 11));
+        chkShapeDetection.setForeground(new Color(150, 150, 150));
+        chkShapeDetection.setOpaque(false);
+        chkShapeDetection.addActionListener(e -> shapeDetectionEnabled = chkShapeDetection.isSelected());
+
+        JPanel webcamHeaderPanel = new JPanel(new BorderLayout());
+        webcamHeaderPanel.setOpaque(false);
+        webcamHeaderPanel.add(lblWebcamTitle, BorderLayout.NORTH);
+        webcamHeaderPanel.add(chkShapeDetection, BorderLayout.SOUTH);
+
+        webcamPanel.add(webcamHeaderPanel, BorderLayout.NORTH);
         webcamPanel.add(lblWebcam, BorderLayout.CENTER);
 
         sidePanel.add(listPanel, BorderLayout.CENTER);
@@ -574,12 +616,24 @@ public class ShapeViewerApp extends JFrame {
     }
 
     private void toggleWebcam() {
+        if (!opencvAvailable) {
+            lblWebcam.setText("OpenCV fehlt");
+            lblWebcam.setForeground(new Color(200, 80, 80));
+            JOptionPane.showMessageDialog(this,
+                "OpenCV konnte nicht geladen werden.\nWebcam-Funktion ist nicht verfügbar.",
+                "OpenCV Fehler", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         if (webcamRunning) {
             webcamRunning = false;
             lblWebcam.setIcon(null);
             lblWebcam.setText("Aus");
+            lblWebcam.setForeground(new Color(100, 100, 100));
         } else {
             webcamRunning = true;
+            lblWebcam.setText("Starte...");
+            lblWebcam.setForeground(new Color(100, 180, 100));
             webcamThread = new Thread(this::webcamLoop);
             webcamThread.start();
         }
@@ -602,8 +656,26 @@ public class ShapeViewerApp extends JFrame {
         Mat frame = new Mat();
         while (webcamRunning) {
             if (capture.read(frame) && !frame.empty()) {
+                // Formerkennung durchführen wenn aktiviert
+                java.util.List<ShapeDetector.DetectedShape> detectedShapes = new java.util.ArrayList<>();
+                if (shapeDetectionEnabled && shapeDetector != null) {
+                    detectedShapes = shapeDetector.detectShapes(frame);
+
+                    // Dialog anzeigen für gültige Mappings (mit Cooldown)
+                    long currentTime = System.currentTimeMillis();
+                    if (!dialogOpen && currentTime - lastShapeDetectionTime > SHAPE_DETECTION_COOLDOWN) {
+                        for (ShapeDetector.DetectedShape shape : detectedShapes) {
+                            if (ShapeDetector.isValidMapping(shape)) {
+                                lastShapeDetectionTime = currentTime;
+                                showAddShapeDialog(shape);
+                                break; // Nur ein Dialog pro Durchgang
+                            }
+                        }
+                    }
+                }
+
                 BufferedImage img = matToImage(frame);
-                Image scaled = img.getScaledInstance(180, 135, Image.SCALE_FAST);
+                Image scaled = img.getScaledInstance(260, 195, Image.SCALE_FAST);
                 SwingUtilities.invokeLater(() -> {
                     lblWebcam.setText(null);
                     lblWebcam.setIcon(new ImageIcon(scaled));
@@ -612,6 +684,56 @@ public class ShapeViewerApp extends JFrame {
             try { Thread.sleep(50); } catch (InterruptedException e) { break; }
         }
         capture.release();
+    }
+
+    private void showAddShapeDialog(ShapeDetector.DetectedShape shape) {
+        dialogOpen = true;
+        SwingUtilities.invokeLater(() -> {
+            String shapeName = shape.getColorName() + "es " + shape.getShapeName();
+            String objectName = shape.get3DObjectName();
+
+            int result = JOptionPane.showConfirmDialog(
+                this,
+                shapeName + " erkannt!\n\nMöchten Sie eine " + objectName + " zur Szene hinzufügen?",
+                "Form erkannt",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+            );
+
+            if (result == JOptionPane.YES_OPTION) {
+                SceneData.Object3D obj = createObjectFromShape(shape);
+                if (obj != null) {
+                    addObject(obj);
+                }
+            }
+
+            dialogOpen = false;
+            lastShapeDetectionTime = System.currentTimeMillis(); // Cooldown nach Dialog zurücksetzen
+        });
+    }
+
+    private SceneData.Object3D createObjectFromShape(ShapeDetector.DetectedShape shape) {
+        SceneData.Object3D obj = null;
+
+        switch (shape.get3DObjectName()) {
+            case "Pyramide" -> {
+                obj = SceneData.createPyramid();
+                obj.name = "Pyramid " + (objects.size() + 1);
+                obj.color.set(0.9f, 0.2f, 0.2f); // Rot
+            }
+            case "Kugel" -> {
+                obj = SceneData.createSphere(24, 16);
+                obj.name = "Sphere " + (objects.size() + 1);
+                obj.color.set(0.2f, 0.9f, 0.3f); // Grün
+            }
+            case "Würfel" -> {
+                obj = SceneData.createCube();
+                obj.name = "Cube " + (objects.size() + 1);
+                obj.color.set(0.2f, 0.4f, 0.9f); // Blau
+            }
+        }
+
+        return obj;
     }
 
     private BufferedImage matToImage(Mat m) {

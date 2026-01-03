@@ -53,4 +53,27 @@
             <version>3.4</version>
         </dependency>
     </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <configuration>
+                    <mainClass>shapeviewer.ShapeViewerApp</mainClass>
+                    <cleanupDaemonThreads>false</cleanupDaemonThreads>
+                    <arguments>
+                        <argument>--add-exports</argument>
+                        <argument>java.base/java.lang=ALL-UNNAMED</argument>
+                        <argument>--add-exports</argument>
+                        <argument>java.desktop/sun.awt=ALL-UNNAMED</argument>
+                        <argument>--add-exports</argument>
+                        <argument>java.desktop/sun.java2d=ALL-UNNAMED</argument>
+                        <argument>-Djavax.media.opengl.GLProfile=GL2</argument>
+                    </arguments>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
