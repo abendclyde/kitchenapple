@@ -49,7 +49,6 @@ public class SceneData {
             draw(gl, shaderId, GL2.GL_LINES);
         }
 
-        // Refactoring: Gemeinsame Logik für Render und RenderLines
         private void draw(GL2 gl, int shaderId, int drawMode) {
             if (!initialized) init(gl);
 
@@ -118,8 +117,6 @@ public class SceneData {
         grid.color.set(0.25f, 0.28f, 0.35f);
         return grid;
     }
-
-    // createCube entfernt, da redundant/irreführend.
 
     public static Object3D createPyramid() {
         float[] v = {
@@ -368,5 +365,19 @@ public class SceneData {
         float[] vertArr = new float[buffer.size()];
         for (int i=0; i<buffer.size(); i++) vertArr[i] = buffer.get(i);
         return new Object3D(file.getName(), vertArr, indices.stream().mapToInt(i->i).toArray());
+    }
+
+    public static Object3D createFromDetectedShape(ShapeDetector.DetectedShape shape, int objectCount) {
+        String name3D = shape.get3DObjectName();
+        if (name3D == null) return null;
+
+        Object3D obj = switch (name3D) {
+            case "Pyramide" -> { Object3D o = createPyramid(); o.color.set(0.9f, 0.2f, 0.2f); yield o; }
+            case "Kugel" -> { Object3D o = createSphere(24, 16); o.color.set(0.2f, 0.9f, 0.3f); yield o; }
+            case "Würfel" -> { Object3D o = createCube(); o.color.set(0.2f, 0.4f, 0.9f); yield o; }
+            default -> null;
+        };
+        if (obj != null) obj.name = obj.name + " " + (objectCount + 1);
+        return obj;
     }
 }

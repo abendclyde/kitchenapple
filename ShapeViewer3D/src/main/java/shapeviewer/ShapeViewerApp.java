@@ -701,39 +701,13 @@ public class ShapeViewerApp extends JFrame {
             );
 
             if (result == JOptionPane.YES_OPTION) {
-                SceneData.Object3D obj = createObjectFromShape(shape);
-                if (obj != null) {
-                    addObject(obj);
-                }
+                SceneData.Object3D obj = SceneData.createFromDetectedShape(shape, objects.size());
+                if (obj != null) addObject(obj);
             }
 
             dialogOpen = false;
-            lastShapeDetectionTime = System.currentTimeMillis(); // Cooldown nach Dialog zurücksetzen
+            lastShapeDetectionTime = System.currentTimeMillis();
         });
-    }
-
-    private SceneData.Object3D createObjectFromShape(ShapeDetector.DetectedShape shape) {
-        SceneData.Object3D obj = null;
-
-        switch (shape.get3DObjectName()) {
-            case "Pyramide" -> {
-                obj = SceneData.createPyramid();
-                obj.name = "Pyramid " + (objects.size() + 1);
-                obj.color.set(0.9f, 0.2f, 0.2f); // Rot
-            }
-            case "Kugel" -> {
-                obj = SceneData.createSphere(24, 16);
-                obj.name = "Sphere " + (objects.size() + 1);
-                obj.color.set(0.2f, 0.9f, 0.3f); // Grün
-            }
-            case "Würfel" -> {
-                obj = SceneData.createCube();
-                obj.name = "Cube " + (objects.size() + 1);
-                obj.color.set(0.2f, 0.4f, 0.9f); // Blau
-            }
-        }
-
-        return obj;
     }
 
     private BufferedImage matToImage(Mat m) {

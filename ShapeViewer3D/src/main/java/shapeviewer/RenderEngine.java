@@ -125,7 +125,6 @@ public class RenderEngine implements GLEventListener {
     @Override public void reshape(GLAutoDrawable d, int x, int y, int w, int h) {}
     @Override public void dispose(GLAutoDrawable d) {}
 
-    // Refactoring: Helper Method für Shader Kompilierung
     private int compileShader(GL2 gl, int type, String src) {
         int shader = gl.glCreateShader(type);
         gl.glShaderSource(shader, 1, new String[]{src}, null);
