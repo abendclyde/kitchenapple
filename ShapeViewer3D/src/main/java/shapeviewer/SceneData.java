@@ -345,18 +345,31 @@ public class SceneData {
                 } else if (p[0].equals("vn")) {
                     vn.add(Float.valueOf(p[1])); vn.add(Float.valueOf(p[2])); vn.add(Float.valueOf(p[3]));
                 } else if (p[0].equals("f")) {
-                    for (int k = 1; k <= 3; k++) {
+                    // Sammle alle Vertices der Face (unterstützt Tris, Quads und N-Gons)
+                    List<int[]> faceVertices = new ArrayList<>();
+                    for (int k = 1; k < p.length; k++) {
                         String[] fv = p[k].split("/");
                         int vi = Integer.parseInt(fv[0]) - 1;
                         int ni = fv.length > 2 && !fv[2].isEmpty() ? Integer.parseInt(fv[2]) - 1 : -1;
+                        faceVertices.add(new int[]{vi, ni});
+                    }
 
-                        buffer.add(v.get(vi * 3)); buffer.add(v.get(vi * 3 + 1)); buffer.add(v.get(vi * 3 + 2));
-                        if (ni >= 0 && ni < vn.size()/3) {
-                            buffer.add(vn.get(ni * 3)); buffer.add(vn.get(ni * 3 + 1)); buffer.add(vn.get(ni * 3 + 2));
-                        } else {
-                            buffer.add(0f); buffer.add(1f); buffer.add(0f);
+                    // Fan-Triangulierung: Für n Vertices erzeuge (n-2) Dreiecke
+                    for (int i = 0; i < faceVertices.size() - 2; i++) {
+                        int[][] triangle = {faceVertices.get(0), faceVertices.get(i + 1), faceVertices.get(i + 2)};
+
+                        for (int[] vertex : triangle) {
+                            int vi = vertex[0];
+                            int ni = vertex[1];
+
+                            buffer.add(v.get(vi * 3)); buffer.add(v.get(vi * 3 + 1)); buffer.add(v.get(vi * 3 + 2));
+                            if (ni >= 0 && ni < vn.size()/3) {
+                                buffer.add(vn.get(ni * 3)); buffer.add(vn.get(ni * 3 + 1)); buffer.add(vn.get(ni * 3 + 2));
+                            } else {
+                                buffer.add(0f); buffer.add(1f); buffer.add(0f);
+                            }
+                            indices.add(indices.size());
                         }
-                        indices.add(indices.size());
                     }
                 }
             }

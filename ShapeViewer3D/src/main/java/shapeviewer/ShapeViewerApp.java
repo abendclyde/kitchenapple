@@ -49,6 +49,8 @@ public class ShapeViewerApp extends JFrame {
     private int lastMouseX, lastMouseY, pressedMouseX, pressedMouseY;
     private boolean isDragging = false;
     private static final int DRAG_THRESHOLD = 5;
+    private Vector3f dragOffset = new Vector3f();
+    private float dragPlaneY = 0;
 
     public static void main(String[] args) {
 
@@ -483,6 +485,11 @@ public class ShapeViewerApp extends JFrame {
                         draggedObject = clicked;
                         renderer.selectedObject = clicked;
                         objectList.setSelectedValue(clicked, true);
+
+                        // Initialisiere Drag-Offset für Ray-basiertes Dragging
+                        dragPlaneY = clicked.position.y;
+                        Vector3f hitPoint = screenToGroundPlane(e.getX(), e.getY(), dragPlaneY);
+                        dragOffset.set(hitPoint).sub(clicked.position);
                     } else {
                         draggedObject = null;
                     }
@@ -512,9 +519,9 @@ public class ShapeViewerApp extends JFrame {
 
                 if (isDragging) {
                     if (isDraggingObject && draggedObject != null) {
-                        moveObjectOnGround(draggedObject, dx, dy);
+                        moveObjectOnGround(draggedObject, e.getX(), e.getY());
                     } else {
-                        renderer.cameraYaw += dx * 0.5f;
+                        renderer.cameraYaw -= dx * 0.5f;
                         renderer.cameraPitch = Math.max(-85f, Math.min(85f, renderer.cameraPitch + dy * 0.5f));
                     }
                     glCanvas.repaint();
@@ -531,7 +538,9 @@ public class ShapeViewerApp extends JFrame {
         );
     }
 
-    private SceneData.Object3D pickObject(int mouseX, int mouseY) {
+    private record Ray(Vector3f origin, Vector3f direction) {}
+
+    private Ray createRayFromMouse(int mouseX, int mouseY) {
         int w = glCanvas.getWidth();
         int h = glCanvas.getHeight();
         float aspect = (float) w / h;
@@ -558,12 +567,24 @@ public class ShapeViewerApp extends JFrame {
         Vector3f rayOrigin = new Vector3f(rayNear.x, rayNear.y, rayNear.z);
         Vector3f rayDir = new Vector3f(rayFar.x - rayNear.x, rayFar.y - rayNear.y, rayFar.z - rayNear.z).normalize();
 
+        return new Ray(rayOrigin, rayDir);
+    }
+
+    private Vector3f screenToGroundPlane(int mouseX, int mouseY, float planeY) {
+        Ray ray = createRayFromMouse(mouseX, mouseY);
+        float t = (planeY - ray.origin.y) / ray.direction.y;
+        return new Vector3f(ray.origin).add(new Vector3f(ray.direction).mul(t));
+    }
+
+    private SceneData.Object3D pickObject(int mouseX, int mouseY) {
+        Ray ray = createRayFromMouse(mouseX, mouseY);
+
         SceneData.Object3D closest = null;
         float closestDist = Float.MAX_VALUE;
 
         synchronized (objects) {
             for (SceneData.Object3D obj : objects) {
-                float t = intersectAABB(rayOrigin, rayDir, obj);
+                float t = intersectAABB(ray.origin, ray.direction, obj);
                 if (t > 0 && t < closestDist) {
                     closestDist = t;
                     closest = obj;
@@ -604,15 +625,10 @@ public class ShapeViewerApp extends JFrame {
         return tmin;
     }
 
-    private void moveObjectOnGround(SceneData.Object3D obj, int dx, int dy) {
-        float yawRad = (float) Math.toRadians(renderer.cameraYaw);
-        float speed = renderer.cameraDistance * 0.005f;
-
-        float moveX = (float)(Math.sin(yawRad) * dy + Math.cos(yawRad) * dx) * speed;
-        float moveZ = (float)(Math.cos(yawRad) * dy - Math.sin(yawRad) * dx) * speed;
-
-        obj.position.x += moveX;
-        obj.position.z += moveZ;
+    private void moveObjectOnGround(SceneData.Object3D obj, int mouseX, int mouseY) {
+        Vector3f hitPoint = screenToGroundPlane(mouseX, mouseY, dragPlaneY);
+        obj.position.x = hitPoint.x - dragOffset.x;
+        obj.position.z = hitPoint.z - dragOffset.z;
     }
 
     private void toggleWebcam() {
