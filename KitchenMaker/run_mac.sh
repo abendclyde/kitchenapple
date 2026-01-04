@@ -16,4 +16,4 @@ java \
   --add-opens java.desktop/sun.lwawt=ALL-UNNAMED \
   --add-opens java.desktop/sun.lwawt.macosx=ALL-UNNAMED \
   -cp "$CP" \
-  shapeviewer.ShapeViewerApp
+  kitchenmaker.KitchenApp

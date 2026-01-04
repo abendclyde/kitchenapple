@@ -1,4 +1,4 @@
-package shapeviewer;
+package kitchenmaker;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class ShapeViewerApp extends JFrame {
+public class KitchenApp extends JFrame {
 
     private final List<SceneData.Object3D> objects = Collections.synchronizedList(new ArrayList<>());
     private final RenderEngine renderer;
@@ -70,14 +70,14 @@ public class ShapeViewerApp extends JFrame {
         }
 
         if (System.getProperty("os.name").toLowerCase().contains("mac")) {
-            new ShapeViewerApp();
+            new KitchenApp();
         } else {
-            SwingUtilities.invokeLater(ShapeViewerApp::new);
+            SwingUtilities.invokeLater(KitchenApp::new);
         }
     }
 
-    public ShapeViewerApp() {
-        super("ShapeViewer3D");
+    public KitchenApp() {
+        super("KitchenMaker von Niklas Puls");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setSize(1400, 900);
         setLayout(new BorderLayout(0, 0));
@@ -171,7 +171,7 @@ public class ShapeViewerApp extends JFrame {
 
         toolbar.add(Box.createHorizontalGlue());
 
-        JLabel titleLabel = new JLabel("ShapeViewer3D");
+        JLabel titleLabel = new JLabel("KitchenMaker");
         titleLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
         titleLabel.setForeground(new Color(180, 180, 180));
         toolbar.add(titleLabel);
@@ -332,7 +332,7 @@ public class ShapeViewerApp extends JFrame {
 
     private void showEditDialog(SceneData.Object3D obj) {
         JDialog dialog = new JDialog(this, "Bearbeiten: " + obj.name, true);
-        dialog.setSize(350, 320);
+        dialog.setSize(400, 320);
         dialog.setLocationRelativeTo(this);
         dialog.setLayout(new BorderLayout());
 
@@ -632,15 +632,6 @@ public class ShapeViewerApp extends JFrame {
     }
 
     private void toggleWebcam() {
-        if (!opencvAvailable) {
-            lblWebcam.setText("OpenCV fehlt");
-            lblWebcam.setForeground(new Color(200, 80, 80));
-            JOptionPane.showMessageDialog(this,
-                "OpenCV konnte nicht geladen werden.\nWebcam-Funktion ist nicht verfügbar.",
-                "OpenCV Fehler", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
         if (webcamRunning) {
             webcamRunning = false;
             lblWebcam.setIcon(null);

@@ -1,4 +1,4 @@
-package shapeviewer;
+package kitchenmaker;
 
 import org.opencv.core.*;
 import org.opencv.imgproc.Imgproc;

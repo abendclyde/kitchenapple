@@ -1,4 +1,4 @@
-package shapeviewer;
+package kitchenmaker;
 
 import com.jogamp.opengl.*;
 import org.joml.Matrix4f;
