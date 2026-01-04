@@ -40,15 +40,15 @@ public class SceneData {
             }
         }
 
-        public void render(GL2 gl, int shaderId) {
-            draw(gl, shaderId, GL2.GL_TRIANGLES);
+        public void render(GL2 gl, int shaderId, int modelLoc, int colorLoc) {
+            draw(gl, modelLoc, colorLoc, GL2.GL_TRIANGLES);
         }
 
-        public void renderLines(GL2 gl, int shaderId) {
-            draw(gl, shaderId, GL2.GL_LINES);
+        public void renderLines(GL2 gl, int shaderId, int modelLoc, int colorLoc) {
+            draw(gl, modelLoc, colorLoc, GL2.GL_LINES);
         }
 
-        private void draw(GL2 gl, int shaderId, int drawMode) {
+        private void draw(GL2 gl, int modelLoc, int colorLoc, int drawMode) {
             if (!initialized) init(gl);
 
             Matrix4f model = new Matrix4f()
@@ -56,8 +56,8 @@ public class SceneData {
                     .rotateX(rotation.x).rotateY(rotation.y).rotateZ(rotation.z)
                     .scale(scale);
 
-            gl.glUniformMatrix4fv(gl.glGetUniformLocation(shaderId, "model"), 1, false, model.get(new float[16]), 0);
-            gl.glUniform3f(gl.glGetUniformLocation(shaderId, "uColor"), color.x, color.y, color.z);
+            gl.glUniformMatrix4fv(modelLoc, 1, false, model.get(new float[16]), 0);
+            gl.glUniform3f(colorLoc, color.x, color.y, color.z);
 
             gl.glBindVertexArray(vao);
             gl.glDrawElements(drawMode, indices.length, GL2.GL_UNSIGNED_INT, 0);
@@ -119,53 +119,12 @@ public class SceneData {
 
 
     public static Object3D loadObj(File file) {
-        List<Float> v = new ArrayList<>(), vn = new ArrayList<>(), buffer = new ArrayList<>();
-        List<Integer> indices = new ArrayList<>();
-
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] p = line.trim().split("\\s+");
-                if (p.length == 0) continue;
-
-                if (p[0].equals("v")) {
-                    v.add(Float.valueOf(p[1])); v.add(Float.valueOf(p[2])); v.add(Float.valueOf(p[3]));
-                } else if (p[0].equals("vn")) {
-                    vn.add(Float.valueOf(p[1])); vn.add(Float.valueOf(p[2])); vn.add(Float.valueOf(p[3]));
-                } else if (p[0].equals("f")) {
-                    // Sammle alle Vertices der Face (unterstützt Tris, Quads und N-Gons)
-                    List<int[]> faceVertices = new ArrayList<>();
-                    for (int k = 1; k < p.length; k++) {
-                        String[] fv = p[k].split("/");
-                        int vi = Integer.parseInt(fv[0]) - 1;
-                        int ni = fv.length > 2 && !fv[2].isEmpty() ? Integer.parseInt(fv[2]) - 1 : -1;
-                        faceVertices.add(new int[]{vi, ni});
-                    }
-
-                    // Fan-Triangulierung: Für n Vertices erzeuge (n-2) Dreiecke
-                    for (int i = 0; i < faceVertices.size() - 2; i++) {
-                        int[][] triangle = {faceVertices.get(0), faceVertices.get(i + 1), faceVertices.get(i + 2)};
-
-                        for (int[] vertex : triangle) {
-                            int vi = vertex[0];
-                            int ni = vertex[1];
-
-                            buffer.add(v.get(vi * 3)); buffer.add(v.get(vi * 3 + 1)); buffer.add(v.get(vi * 3 + 2));
-                            if (ni >= 0 && ni < vn.size()/3) {
-                                buffer.add(vn.get(ni * 3)); buffer.add(vn.get(ni * 3 + 1)); buffer.add(vn.get(ni * 3 + 2));
-                            } else {
-                                buffer.add(0f); buffer.add(1f); buffer.add(0f);
-                            }
-                            indices.add(indices.size());
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) { e.printStackTrace(); return null; }
-
-        float[] vertArr = new float[buffer.size()];
-        for (int i=0; i<buffer.size(); i++) vertArr[i] = buffer.get(i);
-        return new Object3D(file.getName(), vertArr, indices.stream().mapToInt(i->i).toArray());
+            return parseObj(br, file.getName());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     // Mapping: 3D-Objektname -> {Ressourcendatei, Anzeigename, Farbe (r, g, b)}
@@ -198,29 +157,32 @@ public class SceneData {
         String displayName = (String) definition[1];
         float[] color = (float[]) definition[2];
 
-        Object3D obj = loadObjFromResource(resourcePath, displayName);
-        if (obj != null) {
-            obj.color.set(color[0], color[1], color[2]);
+        try (InputStream is = SceneData.class.getResourceAsStream("/" + resourcePath);
+             BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
+            Object3D obj = parseObj(br, displayName);
+            if (obj != null) obj.color.set(color[0], color[1], color[2]);
+            return obj;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
         }
-        return obj;
     }
 
-    private static Object3D loadObjFromResource(String resourcePath, String objectName) {
+    // Gemeinsame OBJ-Parsing-Logik
+    private static Object3D parseObj(BufferedReader br, String objectName) throws IOException {
         List<Float> v = new ArrayList<>(), vn = new ArrayList<>(), buffer = new ArrayList<>();
         List<Integer> indices = new ArrayList<>();
 
-        try (InputStream is = SceneData.class.getResourceAsStream("/" + resourcePath);
-             BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] p = line.trim().split("\\s+");
-                if (p.length == 0) continue;
+        String line;
+        while ((line = br.readLine()) != null) {
+            String[] p = line.trim().split("\\s+");
+            if (p.length == 0) continue;
 
-                if (p[0].equals("v")) {
-                    v.add(Float.valueOf(p[1])); v.add(Float.valueOf(p[2])); v.add(Float.valueOf(p[3]));
-                } else if (p[0].equals("vn")) {
-                    vn.add(Float.valueOf(p[1])); vn.add(Float.valueOf(p[2])); vn.add(Float.valueOf(p[3]));
-                } else if (p[0].equals("f")) {
+            switch (p[0]) {
+                case "v" -> { v.add(Float.valueOf(p[1])); v.add(Float.valueOf(p[2])); v.add(Float.valueOf(p[3])); }
+                case "vn" -> { vn.add(Float.valueOf(p[1])); vn.add(Float.valueOf(p[2])); vn.add(Float.valueOf(p[3])); }
+                case "f" -> {
+                    // Sammle alle Vertices der Face (unterstützt Tris, Quads und N-Gons)
                     List<int[]> faceVertices = new ArrayList<>();
                     for (int k = 1; k < p.length; k++) {
                         String[] fv = p[k].split("/");
@@ -228,16 +190,13 @@ public class SceneData {
                         int ni = fv.length > 2 && !fv[2].isEmpty() ? Integer.parseInt(fv[2]) - 1 : -1;
                         faceVertices.add(new int[]{vi, ni});
                     }
-
+                    // Fan-Triangulierung
                     for (int i = 0; i < faceVertices.size() - 2; i++) {
                         int[][] triangle = {faceVertices.get(0), faceVertices.get(i + 1), faceVertices.get(i + 2)};
-
                         for (int[] vertex : triangle) {
-                            int vi = vertex[0];
-                            int ni = vertex[1];
-
+                            int vi = vertex[0], ni = vertex[1];
                             buffer.add(v.get(vi * 3)); buffer.add(v.get(vi * 3 + 1)); buffer.add(v.get(vi * 3 + 2));
-                            if (ni >= 0 && ni < vn.size()/3) {
+                            if (ni >= 0 && ni < vn.size() / 3) {
                                 buffer.add(vn.get(ni * 3)); buffer.add(vn.get(ni * 3 + 1)); buffer.add(vn.get(ni * 3 + 2));
                             } else {
                                 buffer.add(0f); buffer.add(1f); buffer.add(0f);
@@ -247,13 +206,10 @@ public class SceneData {
                     }
                 }
             }
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
         }
 
         float[] vertArr = new float[buffer.size()];
-        for (int i=0; i<buffer.size(); i++) vertArr[i] = buffer.get(i);
-        return new Object3D(objectName, vertArr, indices.stream().mapToInt(i->i).toArray());
+        for (int i = 0; i < buffer.size(); i++) vertArr[i] = buffer.get(i);
+        return new Object3D(objectName, vertArr, indices.stream().mapToInt(i -> i).toArray());
     }
 }

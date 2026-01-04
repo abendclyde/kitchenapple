@@ -6,6 +6,7 @@ import org.opencv.imgproc.Moments;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class ShapeDetector {
 
@@ -45,15 +46,19 @@ public class ShapeDetector {
             };
         }
 
+        // Mapping: Farbe + Form -> 3D-Objektname
+        private static final Map<String, String> SHAPE_TO_OBJECT = Map.of(
+            "RED_TRIANGLE", "Fridge",
+            "GREEN_CIRCLE", "Sink",
+            "BLUE_RECTANGLE", "Microwave",
+            "BLUE_TRIANGLE", "Oven",
+            "GREEN_RECTANGLE", "Counter",
+            "RED_CIRCLE", "Counter Inner Corner",
+            "BLUE_CIRCLE", "Counter Outer Corner"
+        );
+
         public String get3DObjectName() {
-            if (colorType == ColorType.RED && shapeType == ShapeType.TRIANGLE) return "Fridge";
-            if (colorType == ColorType.GREEN && shapeType == ShapeType.CIRCLE) return "Sink";
-            if (colorType == ColorType.BLUE && shapeType == ShapeType.RECTANGLE) return "Microwave";
-            if (colorType == ColorType.BLUE && shapeType == ShapeType.TRIANGLE) return "Oven";
-            if (colorType == ColorType.GREEN && shapeType == ShapeType.RECTANGLE) return "Counter";
-            if (colorType == ColorType.RED && shapeType == ShapeType.CIRCLE) return "Counter Inner Corner";
-            if (colorType == ColorType.BLUE && shapeType == ShapeType.CIRCLE) return "Counter Outer Corner";
-            return null;
+            return SHAPE_TO_OBJECT.get(colorType.name() + "_" + shapeType.name());
         }
 
         public Scalar getDrawColor() {

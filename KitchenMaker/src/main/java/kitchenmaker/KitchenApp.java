@@ -35,7 +35,7 @@ public class KitchenApp extends JFrame {
     private final JList<SceneData.Object3D> objectList;
     private final Vector3f dragOffset = new Vector3f();
 
-    private JLabel lblWebcam;
+    private JLabel webcamLabel;
     private boolean webcamRunning = false;
     private ShapeDetector shapeDetector;
     private boolean shapeDetectionEnabled = true;
@@ -48,7 +48,6 @@ public class KitchenApp extends JFrame {
     private float dragPlaneY = 0;
 
     public static void main(String[] args) {
-
         FlatDarkLaf.setup();
         UIManager.put("Button.arc", 8);
         UIManager.put("Component.arc", 8);
@@ -57,10 +56,8 @@ public class KitchenApp extends JFrame {
         try {
             nu.pattern.OpenCV.loadLocally();
             opencvAvailable = true;
-            System.out.println("[INFO] OpenCV erfolgreich geladen.");
         } catch (Throwable t) {
             opencvAvailable = false;
-            System.err.println("[WARN] OpenCV konnte nicht geladen werden: " + t.getMessage());
         }
 
         if (System.getProperty("os.name").toLowerCase().contains("mac")) {
@@ -76,13 +73,12 @@ public class KitchenApp extends JFrame {
         setSize(1400, 900);
         setLayout(new BorderLayout(0, 0));
 
-        getContentPane().setBackground(new Color(30, 30, 30));
+        getContentPane().setBackground(Theme.BACKGROUND);
 
         if (opencvAvailable) {
             shapeDetector = new ShapeDetector();
         }
 
-        System.out.println("[INFO] Initialisiere OpenGL...");
         renderer = new RenderEngine(objects);
 
         GLProfile glProfile = GLProfile.getDefault();
@@ -97,8 +93,8 @@ public class KitchenApp extends JFrame {
         objectList = new JList<>(listModel);
         objectList.setCellRenderer(new ObjectListCellRenderer());
         objectList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        objectList.setBackground(new Color(40, 40, 45));
-        objectList.setForeground(Color.WHITE);
+        objectList.setBackground(Theme.LIST_BACKGROUND);
+        objectList.setForeground(Theme.TEXT_PRIMARY);
         objectList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 renderer.selectedObject = objectList.getSelectedValue();
@@ -129,40 +125,38 @@ public class KitchenApp extends JFrame {
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
         toolbar.setBorder(new EmptyBorder(6, 10, 6, 10));
-        toolbar.setBackground(new Color(35, 35, 40));
+        toolbar.setBackground(Theme.PANEL);
 
-        JButton btnImport = createToolbarButton("icons/import.svg", "OBJ Importieren (Ctrl+O)");
-        btnImport.addActionListener(e -> importObjFile());
+        JButton importButton = createToolbarButton("icons/import.svg", "OBJ Importieren (Ctrl+O)");
+        importButton.addActionListener(e -> importObjFile());
 
-        JButton btnAdd = createToolbarButton("icons/plus.svg", "Objekt hinzufügen");
-        btnAdd.addActionListener(e -> showAddObjectMenu(btnAdd));
+        JButton addButton = createToolbarButton("icons/plus.svg", "Objekt hinzufügen");
+        addButton.addActionListener(e -> showAddObjectMenu(addButton));
 
-        JButton btnEdit = createToolbarButton("icons/edit.svg", "Bearbeiten (Doppelklick)");
-        btnEdit.addActionListener(e -> {
-            if (renderer.selectedObject != null) {
-                showEditDialog(renderer.selectedObject);
-            }
+        JButton editButton = createToolbarButton("icons/edit.svg", "Bearbeiten (Doppelklick)");
+        editButton.addActionListener(e -> {
+            if (renderer.selectedObject != null) showEditDialog(renderer.selectedObject);
         });
 
-        JButton btnDelete = createToolbarButton("icons/delete.svg", "Löschen (Delete)");
-        btnDelete.addActionListener(e -> deleteSelectedObject());
+        JButton deleteButton = createToolbarButton("icons/delete.svg", "Löschen (Delete)");
+        deleteButton.addActionListener(e -> deleteSelectedObject());
 
-        toolbar.add(btnImport);
-        toolbar.add(btnAdd);
+        toolbar.add(importButton);
+        toolbar.add(addButton);
         toolbar.addSeparator(new Dimension(20, 0));
-        toolbar.add(btnEdit);
-        toolbar.add(btnDelete);
+        toolbar.add(editButton);
+        toolbar.add(deleteButton);
         toolbar.addSeparator(new Dimension(20, 0));
 
-        JButton btnWebcam = createToolbarButton("icons/camera.svg", "Webcam Start/Stop");
-        btnWebcam.addActionListener(e -> toggleWebcam());
-        toolbar.add(btnWebcam);
+        JButton webcamButton = createToolbarButton("icons/camera.svg", "Webcam Start/Stop");
+        webcamButton.addActionListener(e -> toggleWebcam());
+        toolbar.add(webcamButton);
 
         toolbar.add(Box.createHorizontalGlue());
 
         JLabel titleLabel = new JLabel("KitchenMaker");
-        titleLabel.setFont(new Font("SansSerif", Font.BOLD, 14));
-        titleLabel.setForeground(new Color(180, 180, 180));
+        titleLabel.setFont(Theme.TITLE);
+        titleLabel.setForeground(Theme.TEXT_MUTED);
         toolbar.add(titleLabel);
 
         return toolbar;
@@ -171,161 +165,101 @@ public class KitchenApp extends JFrame {
     private void showAddObjectMenu(JButton source) {
         JPopupMenu menu = new JPopupMenu();
 
+        // Küchenobjekte: {Typ, Anzeigename, Icon}
+        String[][] items = {
+            {"Fridge", "Kühlschrank", "icons/fridge.svg"},
+            {"Microwave", "Mikrowelle", "icons/microwave.svg"},
+            {"Oven", "Backofen", "icons/oven.svg"},
+            {"Counter", "Theke", "icons/counter.svg"},
+            {"Counter Inner Corner", "Theke Innenecke", "icons/counter_corner_inner.svg"},
+            {"Counter Outer Corner", "Theke Außenecke", "icons/counter_corner_outer.svg"},
+            {"Sink", "Waschbecken", "icons/sink.svg"}
+        };
 
-        // Kitchen Models
-        JMenuItem fridgeItem = createMenuItem("Kühlschrank", "icons/fridge.svg", () -> {
-            SceneData.Object3D obj = SceneData.createByType("Fridge");
-            if (obj != null) {
-                obj.name = obj.name + " " + (objects.size() + 1);
-                addObject(obj);
-            }
-        });
-        menu.add(fridgeItem);
-
-        JMenuItem microwaveItem = createMenuItem("Mikrowelle", "icons/microwave.svg", () -> {
-            SceneData.Object3D obj = SceneData.createByType("Microwave");
-            if (obj != null) {
-                obj.name = obj.name + " " + (objects.size() + 1);
-                addObject(obj);
-            }
-        });
-        menu.add(microwaveItem);
-
-        JMenuItem ovenItem = createMenuItem("Backofen", "icons/oven.svg", () -> {
-            SceneData.Object3D obj = SceneData.createByType("Oven");
-            if (obj != null) {
-                obj.name = obj.name + " " + (objects.size() + 1);
-                addObject(obj);
-            }
-        });
-        menu.add(ovenItem);
-
-        JMenuItem counterItem = createMenuItem("Theke", "icons/counter.svg", () -> {
-            SceneData.Object3D obj = SceneData.createByType("Counter");
-            if (obj != null) {
-                obj.name = obj.name + " " + (objects.size() + 1);
-                addObject(obj);
-            }
-        });
-        menu.add(counterItem);
-
-        JMenuItem counterCornerInnerItem = createMenuItem("Theke Innenecke", "icons/counter_corner_inner.svg", () -> {
-            SceneData.Object3D obj = SceneData.createByType("Counter Inner Corner");
-            if (obj != null) {
-                obj.name = obj.name + " " + (objects.size() + 1);
-                addObject(obj);
-            }
-        });
-        menu.add(counterCornerInnerItem);
-
-        JMenuItem counterCornerOuterItem = createMenuItem("Theke Außenecke", "icons/counter_corner_outer.svg", () -> {
-            SceneData.Object3D obj = SceneData.createByType("Counter Outer Corner");
-            if (obj != null) {
-                obj.name = obj.name + " " + (objects.size() + 1);
-                addObject(obj);
-            }
-        });
-        menu.add(counterCornerOuterItem);
-
-        JMenuItem sinkItem = createMenuItem("Waschbecken", "icons/sink.svg", () -> {
-            SceneData.Object3D obj = SceneData.createByType("Sink");
-            if (obj != null) {
-                obj.name = obj.name + " " + (objects.size() + 1);
-                addObject(obj);
-            }
-        });
-        menu.add(sinkItem);
+        for (String[] item : items) {
+            menu.add(createMenuItem(item[1], item[2], () -> addObjectByType(item[0])));
+        }
 
         menu.show(source, 0, source.getHeight());
     }
 
+    private void addObjectByType(String type) {
+        SceneData.Object3D obj = SceneData.createByType(type);
+        if (obj != null) {
+            obj.name = obj.name + " " + (objects.size() + 1);
+            addObject(obj);
+        }
+    }
+
     private JMenuItem createMenuItem(String text, String iconPath, Runnable action) {
-        JMenuItem item = new JMenuItem(text);
-        try {
-            FlatSVGIcon icon = new FlatSVGIcon(iconPath, 16, 16);
-            item.setIcon(icon);
-        } catch (Exception ignored) {}
+        JMenuItem item = new JMenuItem(text, new FlatSVGIcon(iconPath, 16, 16));
         item.addActionListener(e -> action.run());
         return item;
     }
 
     private JButton createToolbarButton(String iconPath, String tooltip) {
-        JButton btn = new JButton();
-        try {
-            FlatSVGIcon icon = new FlatSVGIcon(iconPath, 20, 20);
-            btn.setIcon(icon);
-        } catch (Exception e) {
-            btn.setText("?");
-        }
-        btn.setToolTipText(tooltip);
-        btn.setFocusPainted(false);
-        btn.setBorderPainted(false);
-        btn.setContentAreaFilled(false);
-        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btn.setPreferredSize(new Dimension(36, 36));
-
-        btn.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseEntered(MouseEvent e) {
-                btn.setContentAreaFilled(true);
-                btn.setBackground(new Color(60, 60, 70));
-            }
-            @Override
-            public void mouseExited(MouseEvent e) {
-                btn.setContentAreaFilled(false);
-            }
+        JButton button = new JButton(new FlatSVGIcon(iconPath, 20, 20));
+        button.setToolTipText(tooltip);
+        button.setFocusPainted(false);
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        button.setPreferredSize(Theme.TOOLBAR_BUTTON);
+        button.addMouseListener(new MouseAdapter() {
+            public void mouseEntered(MouseEvent e) { button.setContentAreaFilled(true); button.setBackground(Theme.HOVER); }
+            public void mouseExited(MouseEvent e) { button.setContentAreaFilled(false); }
         });
 
-        return btn;
+        return button;
     }
 
     private JPanel createSidePanel() {
         JPanel sidePanel = new JPanel(new BorderLayout(0, 10));
-        sidePanel.setPreferredSize(new Dimension(280, 0));
-        sidePanel.setBackground(new Color(35, 35, 40));
+        sidePanel.setPreferredSize(Theme.SIDE_PANEL);
+        sidePanel.setBackground(Theme.PANEL);
         sidePanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
-        JLabel lblObjects = new JLabel("Objekte");
-        lblObjects.setFont(new Font("SansSerif", Font.BOLD, 12));
-        lblObjects.setForeground(new Color(150, 150, 150));
-        lblObjects.setBorder(new EmptyBorder(0, 0, 5, 0));
+        JLabel objectsLabel = new JLabel("Objekte");
+        objectsLabel.setFont(Theme.LABEL);
+        objectsLabel.setForeground(Theme.TEXT_LABEL);
+        objectsLabel.setBorder(new EmptyBorder(0, 0, 5, 0));
 
         JScrollPane scrollPane = new JScrollPane(objectList);
-        scrollPane.setBorder(BorderFactory.createLineBorder(new Color(60, 60, 65)));
-        scrollPane.setBackground(new Color(40, 40, 45));
+        scrollPane.setBorder(BorderFactory.createLineBorder(Theme.BORDER));
+        scrollPane.setBackground(Theme.LIST_BACKGROUND);
 
         JPanel listPanel = new JPanel(new BorderLayout());
         listPanel.setOpaque(false);
-        listPanel.add(lblObjects, BorderLayout.NORTH);
+        listPanel.add(objectsLabel, BorderLayout.NORTH);
         listPanel.add(scrollPane, BorderLayout.CENTER);
 
         JPanel webcamPanel = new JPanel(new BorderLayout(0, 5));
         webcamPanel.setOpaque(false);
 
-        JLabel lblWebcamTitle = new JLabel("Webcam & Formerkennung");
-        lblWebcamTitle.setFont(new Font("SansSerif", Font.BOLD, 12));
-        lblWebcamTitle.setForeground(new Color(150, 150, 150));
+        JLabel webcamTitleLabel = new JLabel("Webcam & Formerkennung");
+        webcamTitleLabel.setFont(Theme.LABEL);
+        webcamTitleLabel.setForeground(Theme.TEXT_LABEL);
 
-        lblWebcam = new JLabel("Aus", SwingConstants.CENTER);
-        lblWebcam.setPreferredSize(new Dimension(260, 195));
-        lblWebcam.setBackground(new Color(25, 25, 30));
-        lblWebcam.setForeground(new Color(100, 100, 100));
-        lblWebcam.setOpaque(true);
-        lblWebcam.setBorder(BorderFactory.createLineBorder(new Color(60, 60, 65)));
+        webcamLabel = new JLabel("Aus", SwingConstants.CENTER);
+        webcamLabel.setPreferredSize(Theme.WEBCAM_PREVIEW);
+        webcamLabel.setBackground(Theme.BACKGROUND_DARK);
+        webcamLabel.setForeground(Theme.TEXT_DISABLED);
+        webcamLabel.setOpaque(true);
+        webcamLabel.setBorder(BorderFactory.createLineBorder(Theme.BORDER));
 
-        JCheckBox chkShapeDetection = new JCheckBox("Formerkennung aktiv", shapeDetectionEnabled);
-        chkShapeDetection.setFont(new Font("SansSerif", Font.PLAIN, 11));
-        chkShapeDetection.setForeground(new Color(150, 150, 150));
-        chkShapeDetection.setOpaque(false);
-        chkShapeDetection.addActionListener(e -> shapeDetectionEnabled = chkShapeDetection.isSelected());
+        JCheckBox shapeDetectionCheckBox = new JCheckBox("Formerkennung aktiv", shapeDetectionEnabled);
+        shapeDetectionCheckBox.setFont(Theme.LABEL_SMALL);
+        shapeDetectionCheckBox.setForeground(Theme.TEXT_LABEL);
+        shapeDetectionCheckBox.setOpaque(false);
+        shapeDetectionCheckBox.addActionListener(e -> shapeDetectionEnabled = shapeDetectionCheckBox.isSelected());
 
         JPanel webcamHeaderPanel = new JPanel(new BorderLayout());
         webcamHeaderPanel.setOpaque(false);
-        webcamHeaderPanel.add(lblWebcamTitle, BorderLayout.NORTH);
-        webcamHeaderPanel.add(chkShapeDetection, BorderLayout.SOUTH);
+        webcamHeaderPanel.add(webcamTitleLabel, BorderLayout.NORTH);
+        webcamHeaderPanel.add(shapeDetectionCheckBox, BorderLayout.SOUTH);
 
         webcamPanel.add(webcamHeaderPanel, BorderLayout.NORTH);
-        webcamPanel.add(lblWebcam, BorderLayout.CENTER);
+        webcamPanel.add(webcamLabel, BorderLayout.CENTER);
 
         sidePanel.add(listPanel, BorderLayout.CENTER);
         sidePanel.add(webcamPanel, BorderLayout.SOUTH);
@@ -341,9 +275,7 @@ public class KitchenApp extends JFrame {
 
         // Original-Werte speichern für Abbrechen-Funktion
         String originalName = obj.name;
-        float originalPosX = obj.position.x;
-        float originalPosY = obj.position.y;
-        float originalPosZ = obj.position.z;
+        Vector3f originalPos = new Vector3f(obj.position);
         float originalRotY = obj.rotation.y;
         Vector3f originalColor = new Vector3f(obj.color);
 
@@ -351,127 +283,94 @@ public class KitchenApp extends JFrame {
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBorder(new EmptyBorder(20, 20, 20, 20));
 
+        // Name-Feld
         JPanel namePanel = createLabeledField("Name:");
-        JTextField txtName = new JTextField(obj.name);
-        txtName.addKeyListener(new KeyAdapter() {
-            @Override
-            public void keyReleased(KeyEvent e) {
-                obj.name = txtName.getText();
-                objectList.repaint();
-            }
+        JTextField nameField = new JTextField(obj.name);
+        nameField.addKeyListener(new KeyAdapter() {
+            public void keyReleased(KeyEvent e) { obj.name = nameField.getText(); objectList.repaint(); }
         });
-        namePanel.add(txtName);
+        namePanel.add(nameField);
         content.add(namePanel);
         content.add(Box.createVerticalStrut(15));
 
-        JPanel posXPanel = createLabeledField("Position X:");
-        JSlider sldX = new JSlider(-100, 100, (int)(obj.position.x * 10));
-        JLabel lblX = new JLabel(String.format("%.1f", obj.position.x));
-        lblX.setPreferredSize(new Dimension(40, 20));
-        sldX.addChangeListener(e -> {
-            obj.position.x = sldX.getValue() / 10f;
-            lblX.setText(String.format("%.1f", obj.position.x));
-            glCanvas.repaint();
-        });
-        posXPanel.add(sldX);
-        posXPanel.add(lblX);
-        content.add(posXPanel);
-
-        JPanel posYPanel = createLabeledField("Position Y:");
-        JSlider sldY = new JSlider(-100, 100, (int)(obj.position.y * 10));
-        JLabel lblY = new JLabel(String.format("%.1f", obj.position.y));
-        lblY.setPreferredSize(new Dimension(40, 20));
-        sldY.addChangeListener(e -> {
-            obj.position.y = sldY.getValue() / 10f;
-            lblY.setText(String.format("%.1f", obj.position.y));
-            glCanvas.repaint();
-        });
-        posYPanel.add(sldY);
-        posYPanel.add(lblY);
-        content.add(posYPanel);
-
-        JPanel posZPanel = createLabeledField("Position Z:");
-        JSlider sldZ = new JSlider(-100, 100, (int)(obj.position.z * 10));
-        JLabel lblZ = new JLabel(String.format("%.1f", obj.position.z));
-        lblZ.setPreferredSize(new Dimension(40, 20));
-        sldZ.addChangeListener(e -> {
-            obj.position.z = sldZ.getValue() / 10f;
-            lblZ.setText(String.format("%.1f", obj.position.z));
-            glCanvas.repaint();
-        });
-        posZPanel.add(sldZ);
-        posZPanel.add(lblZ);
-        content.add(posZPanel);
-
-        JPanel rotPanel = createLabeledField("Rotation Y:");
-        JSlider sldRotY = new JSlider(0, 360, (int)Math.toDegrees(obj.rotation.y));
-        JLabel lblRot = new JLabel(sldRotY.getValue() + "°");
-        lblRot.setPreferredSize(new Dimension(40, 20));
-        sldRotY.addChangeListener(e -> {
-            obj.rotation.y = (float) Math.toRadians(sldRotY.getValue());
-            lblRot.setText(sldRotY.getValue() + "°");
-            glCanvas.repaint();
-        });
-        rotPanel.add(sldRotY);
-        rotPanel.add(lblRot);
-        content.add(rotPanel);
+        // Position-Slider
+        content.add(createSlider("Position X:", -100, 100, (int)(obj.position.x * 10),
+            v -> { obj.position.x = v / 10f; glCanvas.repaint(); }, "%.1f", 10f));
+        content.add(createSlider("Position Y:", -100, 100, (int)(obj.position.y * 10),
+            v -> { obj.position.y = v / 10f; glCanvas.repaint(); }, "%.1f", 10f));
+        content.add(createSlider("Position Z:", -100, 100, (int)(obj.position.z * 10),
+            v -> { obj.position.z = v / 10f; glCanvas.repaint(); }, "%.1f", 10f));
+        content.add(createSlider("Rotation Y:", 0, 360, (int)Math.toDegrees(obj.rotation.y),
+            v -> { obj.rotation.y = (float)Math.toRadians(v); glCanvas.repaint(); }, "%d°", 1f));
 
         content.add(Box.createVerticalStrut(10));
 
+        // Farbauswahl
         JPanel colorPanel = createLabeledField("Farbe:");
-        JButton btnColor = new JButton("  ");
-        Color initialColor = new Color(obj.color.x, obj.color.y, obj.color.z);
-        btnColor.setBackground(initialColor);
-        btnColor.setPreferredSize(new Dimension(80, 28));
-        btnColor.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(80, 80, 85), 1),
-            BorderFactory.createEmptyBorder(2, 2, 2, 2)
-        ));
-        btnColor.setFocusPainted(false);
-        btnColor.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        btnColor.addActionListener(e -> {
-            Color newColor = JColorChooser.showDialog(dialog, "Farbe wählen", btnColor.getBackground());
+        JButton colorButton = new JButton("  ");
+        colorButton.setBackground(new Color(obj.color.x, obj.color.y, obj.color.z));
+        colorButton.setPreferredSize(Theme.COLOR_BUTTON);
+        colorButton.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(Theme.ICON_BORDER, 1),
+            BorderFactory.createEmptyBorder(2, 2, 2, 2)));
+        colorButton.setFocusPainted(false);
+        colorButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        colorButton.addActionListener(e -> {
+            Color newColor = JColorChooser.showDialog(dialog, "Farbe wählen", colorButton.getBackground());
             if (newColor != null) {
-                btnColor.setBackground(newColor);
+                colorButton.setBackground(newColor);
                 obj.color.set(newColor.getRed() / 255f, newColor.getGreen() / 255f, newColor.getBlue() / 255f);
                 objectList.repaint();
                 glCanvas.repaint();
             }
         });
-        colorPanel.add(btnColor);
+        colorPanel.add(colorButton);
         content.add(colorPanel);
 
+        // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        JButton btnCancel = new JButton("Abbrechen");
-        btnCancel.addActionListener(e -> {
-            // Originalwerte wiederherstellen
+        JButton cancelButton = new JButton("Abbrechen");
+        cancelButton.addActionListener(e -> {
             obj.name = originalName;
-            obj.position.x = originalPosX;
-            obj.position.y = originalPosY;
-            obj.position.z = originalPosZ;
+            obj.position.set(originalPos);
             obj.rotation.y = originalRotY;
             obj.color.set(originalColor);
             objectList.repaint();
             glCanvas.repaint();
             dialog.dispose();
         });
-
-        JButton btnApply = new JButton("OK");
-        btnApply.addActionListener(e -> dialog.dispose());
-
-        buttonPanel.add(btnApply);
-        buttonPanel.add(btnCancel);
+        JButton applyButton = new JButton("OK");
+        applyButton.addActionListener(e -> dialog.dispose());
+        buttonPanel.add(applyButton);
+        buttonPanel.add(cancelButton);
 
         dialog.add(content, BorderLayout.CENTER);
         dialog.add(buttonPanel, BorderLayout.SOUTH);
         dialog.setVisible(true);
     }
 
+    private JPanel createSlider(String label, int min, int max, int value,
+                                 java.util.function.IntConsumer onChange, String format, float divisor) {
+        JPanel panel = createLabeledField(label);
+        JSlider slider = new JSlider(min, max, value);
+        Object initialValue = divisor == 1f ? value : (Object)(value / divisor);
+        JLabel valueLabel = new JLabel(String.format(format, initialValue));
+        valueLabel.setPreferredSize(Theme.VALUE_LABEL);
+        slider.addChangeListener(e -> {
+            onChange.accept(slider.getValue());
+            Object displayValue = divisor == 1f ? slider.getValue() : (Object)(slider.getValue() / divisor);
+            valueLabel.setText(String.format(format, displayValue));
+        });
+        panel.add(slider);
+        panel.add(valueLabel);
+        return panel;
+    }
+
     private JPanel createLabeledField(String label) {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
-        JLabel lbl = new JLabel(label);
-        lbl.setPreferredSize(new Dimension(80, 20));
-        panel.add(lbl);
+        JLabel jLabel = new JLabel(label);
+        jLabel.setPreferredSize(Theme.LABEL_FIELD);
+        panel.add(jLabel);
         return panel;
     }
 
@@ -681,13 +580,13 @@ public class KitchenApp extends JFrame {
     private void toggleWebcam() {
         if (webcamRunning) {
             webcamRunning = false;
-            lblWebcam.setIcon(null);
-            lblWebcam.setText("Aus");
-            lblWebcam.setForeground(new Color(100, 100, 100));
+            webcamLabel.setIcon(null);
+            webcamLabel.setText("Aus");
+            webcamLabel.setForeground(Theme.TEXT_DISABLED);
         } else {
             webcamRunning = true;
-            lblWebcam.setText("Starte...");
-            lblWebcam.setForeground(new Color(100, 180, 100));
+            webcamLabel.setText("Starte...");
+            webcamLabel.setForeground(Theme.SUCCESS);
             new Thread(this::webcamLoop).start();
         }
     }
@@ -697,10 +596,9 @@ public class KitchenApp extends JFrame {
         if (!capture.isOpened()) capture = new VideoCapture(1);
 
         if (!capture.isOpened()) {
-            System.err.println("Keine Webcam gefunden.");
             SwingUtilities.invokeLater(() -> {
-                lblWebcam.setText("Keine Webcam");
-                lblWebcam.setForeground(new Color(200, 80, 80));
+                webcamLabel.setText("Keine Webcam");
+                webcamLabel.setForeground(Theme.ERROR);
             });
             webcamRunning = false;
             return;
@@ -728,8 +626,8 @@ public class KitchenApp extends JFrame {
                 BufferedImage img = matToImage(frame);
                 Image scaled = img.getScaledInstance(260, 195, Image.SCALE_FAST);
                 SwingUtilities.invokeLater(() -> {
-                    lblWebcam.setText(null);
-                    lblWebcam.setIcon(new ImageIcon(scaled));
+                    webcamLabel.setText(null);
+                    webcamLabel.setIcon(new ImageIcon(scaled));
                 });
             }
             try { Thread.sleep(50); } catch (InterruptedException e) { break; }
@@ -784,11 +682,11 @@ public class KitchenApp extends JFrame {
                 setIcon(new ColorIcon(objColor, 12, 12));
 
                 if (isSelected) {
-                    setBackground(new Color(70, 130, 180));
-                    setForeground(Color.WHITE);
+                    setBackground(Theme.SELECTION);
+                    setForeground(Theme.TEXT_PRIMARY);
                 } else {
-                    setBackground(new Color(40, 40, 45));
-                    setForeground(new Color(220, 220, 220));
+                    setBackground(Theme.LIST_BACKGROUND);
+                    setForeground(Theme.TEXT_SECONDARY);
                 }
             }
             return this;
@@ -811,7 +709,7 @@ public class KitchenApp extends JFrame {
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(color);
             g2.fillRoundRect(x, y, width, height, 4, 4);
-            g2.setColor(new Color(100, 100, 100));
+            g2.setColor(Theme.ICON_BORDER_LIGHT);
             g2.drawRoundRect(x, y, width - 1, height - 1, 4, 4);
             g2.dispose();
         }
