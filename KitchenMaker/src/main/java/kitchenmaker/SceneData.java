@@ -117,217 +117,6 @@ public class SceneData {
         return grid;
     }
 
-    public static Object3D createPyramid() {
-        float[] v = {
-                -0.5f, 0, 0.5f, 0, 0.5f, 0.8f, 0.5f, 0, 0.5f, 0, 0.5f, 0.8f, 0, 1, 0, 0, 0.5f, 0.8f, // Front
-                0.5f, 0, 0.5f, 0.8f, 0.5f, 0, 0.5f, 0, -0.5f, 0.8f, 0.5f, 0, 0, 1, 0, 0.8f, 0.5f, 0, // Right
-                0.5f, 0, -0.5f, 0, 0.5f, -0.8f, -0.5f, 0, -0.5f, 0, 0.5f, -0.8f, 0, 1, 0, 0, 0.5f, -0.8f, // Back
-                -0.5f, 0, -0.5f, -0.8f, 0.5f, 0, -0.5f, 0, 0.5f, -0.8f, 0.5f, 0, 0, 1, 0, -0.8f, 0.5f, 0, // Left
-                -0.5f, 0, 0.5f, 0, -1, 0, 0.5f, 0, 0.5f, 0, -1, 0, 0.5f, 0, -0.5f, 0, -1, 0, // Bottom 1
-                -0.5f, 0, 0.5f, 0, -1, 0, 0.5f, 0, -0.5f, 0, -1, 0, -0.5f, 0, -0.5f, 0, -1, 0 // Bottom 2
-        };
-        int[] i = { 0,1,2, 3,4,5, 6,7,8, 9,10,11, 12,13,14, 15,16,17 };
-        Object3D obj = new Object3D("Pyramid", v, i);
-        obj.color.set(1.0f, 0.5f, 0.0f);
-        return obj;
-    }
-
-    public static Object3D createCube() {
-        float[] v = {
-            // Front face
-            -0.5f, -0.5f,  0.5f,  0, 0, 1,   0.5f, -0.5f,  0.5f,  0, 0, 1,   0.5f,  0.5f,  0.5f,  0, 0, 1,
-            -0.5f, -0.5f,  0.5f,  0, 0, 1,   0.5f,  0.5f,  0.5f,  0, 0, 1,  -0.5f,  0.5f,  0.5f,  0, 0, 1,
-            // Back face
-            -0.5f, -0.5f, -0.5f,  0, 0,-1,  -0.5f,  0.5f, -0.5f,  0, 0,-1,   0.5f,  0.5f, -0.5f,  0, 0,-1,
-            -0.5f, -0.5f, -0.5f,  0, 0,-1,   0.5f,  0.5f, -0.5f,  0, 0,-1,   0.5f, -0.5f, -0.5f,  0, 0,-1,
-            // Top face
-            -0.5f,  0.5f, -0.5f,  0, 1, 0,  -0.5f,  0.5f,  0.5f,  0, 1, 0,   0.5f,  0.5f,  0.5f,  0, 1, 0,
-            -0.5f,  0.5f, -0.5f,  0, 1, 0,   0.5f,  0.5f,  0.5f,  0, 1, 0,   0.5f,  0.5f, -0.5f,  0, 1, 0,
-            // Bottom face
-            -0.5f, -0.5f, -0.5f,  0,-1, 0,   0.5f, -0.5f, -0.5f,  0,-1, 0,   0.5f, -0.5f,  0.5f,  0,-1, 0,
-            -0.5f, -0.5f, -0.5f,  0,-1, 0,   0.5f, -0.5f,  0.5f,  0,-1, 0,  -0.5f, -0.5f,  0.5f,  0,-1, 0,
-            // Right face
-             0.5f, -0.5f, -0.5f,  1, 0, 0,   0.5f,  0.5f, -0.5f,  1, 0, 0,   0.5f,  0.5f,  0.5f,  1, 0, 0,
-             0.5f, -0.5f, -0.5f,  1, 0, 0,   0.5f,  0.5f,  0.5f,  1, 0, 0,   0.5f, -0.5f,  0.5f,  1, 0, 0,
-            // Left face
-            -0.5f, -0.5f, -0.5f, -1, 0, 0,  -0.5f, -0.5f,  0.5f, -1, 0, 0,  -0.5f,  0.5f,  0.5f, -1, 0, 0,
-            -0.5f, -0.5f, -0.5f, -1, 0, 0,  -0.5f,  0.5f,  0.5f, -1, 0, 0,  -0.5f,  0.5f, -0.5f, -1, 0, 0,
-        };
-        int[] indices = new int[36];
-        for (int i = 0; i < 36; i++) indices[i] = i;
-        Object3D obj = new Object3D("Cube", v, indices);
-        obj.color.set(0.3f, 0.6f, 1.0f);
-        return obj;
-    }
-
-    public static Object3D createSphere(int segments, int rings) {
-        List<Float> verts = new ArrayList<>();
-        List<Integer> inds = new ArrayList<>();
-
-        for (int y = 0; y <= rings; y++) {
-            float v = (float) y / rings;
-            float phi = (float) (v * Math.PI);
-
-            for (int x = 0; x <= segments; x++) {
-                float u = (float) x / segments;
-                float theta = (float) (u * 2 * Math.PI);
-
-                float px = (float) (Math.cos(theta) * Math.sin(phi)) * 0.5f;
-                float py = (float) Math.cos(phi) * 0.5f;
-                float pz = (float) (Math.sin(theta) * Math.sin(phi)) * 0.5f;
-
-                float nx = px * 2, ny = py * 2, nz = pz * 2;
-                float len = (float) Math.sqrt(nx*nx + ny*ny + nz*nz);
-                nx /= len; ny /= len; nz /= len;
-
-                Collections.addAll(verts, px, py, pz, nx, ny, nz);
-            }
-        }
-
-        for (int y = 0; y < rings; y++) {
-            for (int x = 0; x < segments; x++) {
-                int i0 = y * (segments + 1) + x;
-                int i1 = i0 + 1;
-                int i2 = i0 + (segments + 1);
-                int i3 = i2 + 1;
-
-                inds.add(i0); inds.add(i2); inds.add(i1);
-                inds.add(i1); inds.add(i2); inds.add(i3);
-            }
-        }
-
-        float[] vArr = new float[verts.size()];
-        for (int i = 0; i < verts.size(); i++) vArr[i] = verts.get(i);
-        int[] iArr = inds.stream().mapToInt(i -> i).toArray();
-
-        Object3D obj = new Object3D("Sphere", vArr, iArr);
-        obj.color.set(0.2f, 0.8f, 0.4f);
-        return obj;
-    }
-
-    public static Object3D createCylinder(int segments) {
-        List<Float> verts = new ArrayList<>();
-        List<Integer> inds = new ArrayList<>();
-        float radius = 0.5f, height = 1.0f;
-        int idx = 0;
-
-        // Side vertices
-        for (int i = 0; i <= segments; i++) {
-            float theta = (float) (i * 2 * Math.PI / segments);
-            float x = (float) Math.cos(theta) * radius;
-            float z = (float) Math.sin(theta) * radius;
-            float nx = (float) Math.cos(theta), nz = (float) Math.sin(theta);
-
-            Collections.addAll(verts, x, -height/2, z, nx, 0f, nz); // Bottom
-            Collections.addAll(verts, x, height/2, z, nx, 0f, nz);  // Top
-        }
-
-        // Side indices
-        for (int i = 0; i < segments; i++) {
-            int b0 = i * 2, b1 = b0 + 1, b2 = b0 + 2, b3 = b0 + 3;
-            inds.add(b0); inds.add(b2); inds.add(b1);
-            inds.add(b1); inds.add(b2); inds.add(b3);
-        }
-        idx = (segments + 1) * 2;
-
-        // Top cap center
-        int topCenter = idx;
-        Collections.addAll(verts, 0f, height/2, 0f, 0f, 1f, 0f);
-        idx++;
-
-        for (int i = 0; i <= segments; i++) {
-            float theta = (float) (i * 2 * Math.PI / segments);
-            float x = (float) Math.cos(theta) * radius;
-            float z = (float) Math.sin(theta) * radius;
-            Collections.addAll(verts, x, height/2, z, 0f, 1f, 0f);
-            if (i > 0) {
-                inds.add(topCenter); inds.add(idx - 1); inds.add(idx);
-            }
-            idx++;
-        }
-
-        // Bottom cap center
-        int botCenter = idx;
-        Collections.addAll(verts, 0f, -height/2, 0f, 0f, -1f, 0f);
-        idx++;
-
-        for (int i = 0; i <= segments; i++) {
-            float theta = (float) (i * 2 * Math.PI / segments);
-            float x = (float) Math.cos(theta) * radius;
-            float z = (float) Math.sin(theta) * radius;
-            Collections.addAll(verts, x, -height/2, z, 0f, -1f, 0f);
-            if (i > 0) {
-                inds.add(botCenter); inds.add(idx); inds.add(idx - 1);
-            }
-            idx++;
-        }
-
-        float[] vArr = new float[verts.size()];
-        for (int i = 0; i < verts.size(); i++) vArr[i] = verts.get(i);
-        int[] iArr = inds.stream().mapToInt(i -> i).toArray();
-
-        Object3D obj = new Object3D("Cylinder", vArr, iArr);
-        obj.color.set(0.8f, 0.3f, 0.6f);
-        return obj;
-    }
-
-    public static Object3D createTorus(int segments, int rings) {
-        List<Float> verts = new ArrayList<>();
-        List<Integer> inds = new ArrayList<>();
-        float R = 0.35f; // Major radius
-        float r = 0.15f; // Minor radius
-
-        for (int i = 0; i <= rings; i++) {
-            float u = (float) (i * 2 * Math.PI / rings);
-            float cosU = (float) Math.cos(u), sinU = (float) Math.sin(u);
-
-            for (int j = 0; j <= segments; j++) {
-                float v = (float) (j * 2 * Math.PI / segments);
-                float cosV = (float) Math.cos(v), sinV = (float) Math.sin(v);
-
-                float x = (R + r * cosV) * cosU;
-                float y = r * sinV;
-                float z = (R + r * cosV) * sinU;
-
-                float nx = cosV * cosU;
-                float ny = sinV;
-                float nz = cosV * sinU;
-
-                Collections.addAll(verts, x, y, z, nx, ny, nz);
-            }
-        }
-
-        for (int i = 0; i < rings; i++) {
-            for (int j = 0; j < segments; j++) {
-                int i0 = i * (segments + 1) + j;
-                int i1 = i0 + 1;
-                int i2 = i0 + (segments + 1);
-                int i3 = i2 + 1;
-
-                inds.add(i0); inds.add(i2); inds.add(i1);
-                inds.add(i1); inds.add(i2); inds.add(i3);
-            }
-        }
-
-        float[] vArr = new float[verts.size()];
-        for (int i = 0; i < verts.size(); i++) vArr[i] = verts.get(i);
-        int[] iArr = inds.stream().mapToInt(i -> i).toArray();
-
-        Object3D obj = new Object3D("Torus", vArr, iArr);
-        obj.color.set(0.9f, 0.7f, 0.2f);
-        return obj;
-    }
-
-    public static Object3D createPlane() {
-        float[] v = {
-            -1f, 0f, -1f,  0, 1, 0,   1f, 0f, -1f,  0, 1, 0,   1f, 0f,  1f,  0, 1, 0,
-            -1f, 0f, -1f,  0, 1, 0,   1f, 0f,  1f,  0, 1, 0,  -1f, 0f,  1f,  0, 1, 0,
-        };
-        int[] indices = {0, 1, 2, 3, 4, 5};
-        Object3D obj = new Object3D("Plane", v, indices);
-        obj.color.set(0.5f, 0.5f, 0.5f);
-        return obj;
-    }
 
     public static Object3D loadObj(File file) {
         List<Float> v = new ArrayList<>(), vn = new ArrayList<>(), buffer = new ArrayList<>();
@@ -379,17 +168,92 @@ public class SceneData {
         return new Object3D(file.getName(), vertArr, indices.stream().mapToInt(i->i).toArray());
     }
 
+    // Mapping: 3D-Objektname -> {Ressourcendatei, Anzeigename, Farbe (r, g, b)}
+    private static final Map<String, Object[]> OBJECT_DEFINITIONS = Map.of(
+        "Fridge", new Object[]{"kuehlschrank.obj", "Kühlschrank", new float[]{0.9f, 0.95f, 1.0f}},
+        "Microwave", new Object[]{"mikrowelle.obj", "Mikrowelle", new float[]{0.2f, 0.2f, 0.2f}},
+        "Oven", new Object[]{"backofen.obj", "Backofen", new float[]{0.15f, 0.15f, 0.15f}},
+        "Counter", new Object[]{"theke.obj", "Theke", new float[]{0.6f, 0.5f, 0.4f}},
+        "Counter Inner Corner", new Object[]{"theke_ecke_innen.obj", "Theke Innenecke", new float[]{0.6f, 0.5f, 0.4f}},
+        "Counter Outer Corner", new Object[]{"theke_ecke_aussen.obj", "Theke Außenecke", new float[]{0.6f, 0.5f, 0.4f}},
+        "Sink", new Object[]{"waschbecken.obj", "Waschbecken", new float[]{0.8f, 0.85f, 0.9f}}
+    );
+
     public static Object3D createFromDetectedShape(ShapeDetector.DetectedShape shape, int objectCount) {
         String name3D = shape.get3DObjectName();
         if (name3D == null) return null;
 
-        Object3D obj = switch (name3D) {
-            case "Pyramide" -> { Object3D o = createPyramid(); o.color.set(0.9f, 0.2f, 0.2f); yield o; }
-            case "Kugel" -> { Object3D o = createSphere(24, 16); o.color.set(0.2f, 0.9f, 0.3f); yield o; }
-            case "Würfel" -> { Object3D o = createCube(); o.color.set(0.2f, 0.4f, 0.9f); yield o; }
-            default -> null;
-        };
-        if (obj != null) obj.name = obj.name + " " + (objectCount + 1);
+        Object3D obj = createByType(name3D);
+        if (obj != null) {
+            obj.name = obj.name + " " + (objectCount + 1);
+        }
         return obj;
+    }
+
+    public static Object3D createByType(String typeName) {
+        Object[] definition = OBJECT_DEFINITIONS.get(typeName);
+        if (definition == null) return null;
+
+        String resourcePath = (String) definition[0];
+        String displayName = (String) definition[1];
+        float[] color = (float[]) definition[2];
+
+        Object3D obj = loadObjFromResource(resourcePath, displayName);
+        if (obj != null) {
+            obj.color.set(color[0], color[1], color[2]);
+        }
+        return obj;
+    }
+
+    private static Object3D loadObjFromResource(String resourcePath, String objectName) {
+        List<Float> v = new ArrayList<>(), vn = new ArrayList<>(), buffer = new ArrayList<>();
+        List<Integer> indices = new ArrayList<>();
+
+        try (InputStream is = SceneData.class.getResourceAsStream("/" + resourcePath);
+             BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                String[] p = line.trim().split("\\s+");
+                if (p.length == 0) continue;
+
+                if (p[0].equals("v")) {
+                    v.add(Float.valueOf(p[1])); v.add(Float.valueOf(p[2])); v.add(Float.valueOf(p[3]));
+                } else if (p[0].equals("vn")) {
+                    vn.add(Float.valueOf(p[1])); vn.add(Float.valueOf(p[2])); vn.add(Float.valueOf(p[3]));
+                } else if (p[0].equals("f")) {
+                    List<int[]> faceVertices = new ArrayList<>();
+                    for (int k = 1; k < p.length; k++) {
+                        String[] fv = p[k].split("/");
+                        int vi = Integer.parseInt(fv[0]) - 1;
+                        int ni = fv.length > 2 && !fv[2].isEmpty() ? Integer.parseInt(fv[2]) - 1 : -1;
+                        faceVertices.add(new int[]{vi, ni});
+                    }
+
+                    for (int i = 0; i < faceVertices.size() - 2; i++) {
+                        int[][] triangle = {faceVertices.get(0), faceVertices.get(i + 1), faceVertices.get(i + 2)};
+
+                        for (int[] vertex : triangle) {
+                            int vi = vertex[0];
+                            int ni = vertex[1];
+
+                            buffer.add(v.get(vi * 3)); buffer.add(v.get(vi * 3 + 1)); buffer.add(v.get(vi * 3 + 2));
+                            if (ni >= 0 && ni < vn.size()/3) {
+                                buffer.add(vn.get(ni * 3)); buffer.add(vn.get(ni * 3 + 1)); buffer.add(vn.get(ni * 3 + 2));
+                            } else {
+                                buffer.add(0f); buffer.add(1f); buffer.add(0f);
+                            }
+                            indices.add(indices.size());
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+
+        float[] vertArr = new float[buffer.size()];
+        for (int i=0; i<buffer.size(); i++) vertArr[i] = buffer.get(i);
+        return new Object3D(objectName, vertArr, indices.stream().mapToInt(i->i).toArray());
     }
 }

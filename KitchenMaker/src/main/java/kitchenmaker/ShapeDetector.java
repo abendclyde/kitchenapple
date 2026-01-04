@@ -46,9 +46,13 @@ public class ShapeDetector {
         }
 
         public String get3DObjectName() {
-            if (colorType == ColorType.RED && shapeType == ShapeType.TRIANGLE) return "Pyramide";
-            if (colorType == ColorType.GREEN && shapeType == ShapeType.CIRCLE) return "Kugel";
-            if (colorType == ColorType.BLUE && shapeType == ShapeType.RECTANGLE) return "Würfel";
+            if (colorType == ColorType.RED && shapeType == ShapeType.TRIANGLE) return "Fridge";
+            if (colorType == ColorType.GREEN && shapeType == ShapeType.CIRCLE) return "Sink";
+            if (colorType == ColorType.BLUE && shapeType == ShapeType.RECTANGLE) return "Microwave";
+            if (colorType == ColorType.BLUE && shapeType == ShapeType.TRIANGLE) return "Oven";
+            if (colorType == ColorType.GREEN && shapeType == ShapeType.RECTANGLE) return "Counter";
+            if (colorType == ColorType.RED && shapeType == ShapeType.CIRCLE) return "Counter Inner Corner";
+            if (colorType == ColorType.BLUE && shapeType == ShapeType.CIRCLE) return "Counter Outer Corner";
             return null;
         }
 
@@ -158,23 +162,28 @@ public class ShapeDetector {
     }
 
     private DetectedShape.ShapeType classifyShape(int vertices, MatOfPoint contour, double area) {
-        if (vertices == 3) {
-            return DetectedShape.ShapeType.TRIANGLE;
-        } else if (vertices == 4) {
-            Rect boundingRect = Imgproc.boundingRect(contour);
-            double aspectRatio = (double) boundingRect.width / boundingRect.height;
-            double fillRatio = area / (boundingRect.width * boundingRect.height);
-            if (fillRatio > 0.75 && aspectRatio >= 0.5 && aspectRatio <= 2.0) {
-                return DetectedShape.ShapeType.RECTANGLE;
-            }
-        } else if (vertices > 6) {
-            MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());
-            double perimeter = Imgproc.arcLength(contour2f, true);
-            contour2f.release();
-            double circularity = (4 * Math.PI * area) / (perimeter * perimeter);
-            if (circularity > 0.75) return DetectedShape.ShapeType.CIRCLE;
-        }
-        return DetectedShape.ShapeType.UNKNOWN;
+        return switch (vertices) {
+            case 3 -> DetectedShape.ShapeType.TRIANGLE;
+            case 4 -> classifyQuadrilateral(contour, area);
+            default -> vertices > 6 ? classifyCircle(contour, area) : DetectedShape.ShapeType.UNKNOWN;
+        };
+    }
+
+    private DetectedShape.ShapeType classifyQuadrilateral(MatOfPoint contour, double area) {
+        Rect rect = Imgproc.boundingRect(contour);
+        double aspectRatio = (double) rect.width / rect.height;
+        double fillRatio = area / rect.area();
+        return (fillRatio > 0.75 && aspectRatio >= 0.5 && aspectRatio <= 2.0)
+            ? DetectedShape.ShapeType.RECTANGLE
+            : DetectedShape.ShapeType.UNKNOWN;
+    }
+
+    private DetectedShape.ShapeType classifyCircle(MatOfPoint contour, double area) {
+        MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());
+        double perimeter = Imgproc.arcLength(contour2f, true);
+        contour2f.release();
+        double circularity = (4 * Math.PI * area) / (perimeter * perimeter);
+        return circularity > 0.75 ? DetectedShape.ShapeType.CIRCLE : DetectedShape.ShapeType.UNKNOWN;
     }
 
     private void drawShapeOutline(Mat frame, DetectedShape shape) {

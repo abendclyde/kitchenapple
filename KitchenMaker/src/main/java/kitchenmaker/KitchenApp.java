@@ -42,7 +42,6 @@ public class KitchenApp extends JFrame {
     private long lastShapeDetectionTime = 0;
     private volatile boolean dialogOpen = false;
 
-    private SceneData.Object3D draggedObject = null;
     private boolean isDraggingObject = false;
     private boolean isDragging = false;
     private int lastMouseX, lastMouseY, pressedMouseX, pressedMouseY;
@@ -118,9 +117,6 @@ public class KitchenApp extends JFrame {
         add(glCanvas, BorderLayout.CENTER);
         add(createSidePanel(), BorderLayout.WEST);
 
-        SceneData.Object3D pyramid = SceneData.createPyramid();
-        addObject(pyramid);
-        objectList.setSelectedIndex(0);
 
         setupInteraction();
         setLocationRelativeTo(null);
@@ -175,49 +171,70 @@ public class KitchenApp extends JFrame {
     private void showAddObjectMenu(JButton source) {
         JPopupMenu menu = new JPopupMenu();
 
-        JMenuItem pyramidItem = createMenuItem("Pyramide", "icons/pyramid.svg", () -> {
-            SceneData.Object3D obj = SceneData.createPyramid();
-            obj.name = "Pyramid " + (objects.size() + 1);
-            addObject(obj);
-        });
-        menu.add(pyramidItem);
 
-        JMenuItem cubeItem = createMenuItem("Würfel", "icons/cube.svg", () -> {
-            SceneData.Object3D obj = SceneData.createCube();
-            obj.name = "Cube " + (objects.size() + 1);
-            addObject(obj);
+        // Kitchen Models
+        JMenuItem fridgeItem = createMenuItem("Kühlschrank", "icons/fridge.svg", () -> {
+            SceneData.Object3D obj = SceneData.createByType("Fridge");
+            if (obj != null) {
+                obj.name = obj.name + " " + (objects.size() + 1);
+                addObject(obj);
+            }
         });
-        menu.add(cubeItem);
+        menu.add(fridgeItem);
 
-        JMenuItem sphereItem = createMenuItem("Kugel", "icons/sphere.svg", () -> {
-            SceneData.Object3D obj = SceneData.createSphere(24, 16);
-            obj.name = "Sphere " + (objects.size() + 1);
-            addObject(obj);
+        JMenuItem microwaveItem = createMenuItem("Mikrowelle", "icons/microwave.svg", () -> {
+            SceneData.Object3D obj = SceneData.createByType("Microwave");
+            if (obj != null) {
+                obj.name = obj.name + " " + (objects.size() + 1);
+                addObject(obj);
+            }
         });
-        menu.add(sphereItem);
+        menu.add(microwaveItem);
 
-        JMenuItem cylinderItem = createMenuItem("Zylinder", "icons/cylinder.svg", () -> {
-            SceneData.Object3D obj = SceneData.createCylinder(24);
-            obj.name = "Cylinder " + (objects.size() + 1);
-            addObject(obj);
+        JMenuItem ovenItem = createMenuItem("Backofen", "icons/oven.svg", () -> {
+            SceneData.Object3D obj = SceneData.createByType("Oven");
+            if (obj != null) {
+                obj.name = obj.name + " " + (objects.size() + 1);
+                addObject(obj);
+            }
         });
-        menu.add(cylinderItem);
+        menu.add(ovenItem);
 
-        JMenuItem torusItem = createMenuItem("Torus", "icons/torus.svg", () -> {
-            SceneData.Object3D obj = SceneData.createTorus(24, 12);
-            obj.name = "Torus " + (objects.size() + 1);
-            addObject(obj);
+        JMenuItem counterItem = createMenuItem("Theke", "icons/counter.svg", () -> {
+            SceneData.Object3D obj = SceneData.createByType("Counter");
+            if (obj != null) {
+                obj.name = obj.name + " " + (objects.size() + 1);
+                addObject(obj);
+            }
         });
-        menu.add(torusItem);
+        menu.add(counterItem);
 
-        menu.addSeparator();
-
-        JMenuItem planeItem = createMenuItem("Ebene", "icons/plane.svg", () -> {
-            SceneData.Object3D obj = SceneData.createPlane();
-            obj.name = "Plane " + (objects.size() + 1);
-            addObject(obj);
+        JMenuItem counterCornerInnerItem = createMenuItem("Theke Innenecke", "icons/counter_corner_inner.svg", () -> {
+            SceneData.Object3D obj = SceneData.createByType("Counter Inner Corner");
+            if (obj != null) {
+                obj.name = obj.name + " " + (objects.size() + 1);
+                addObject(obj);
+            }
         });
-        menu.add(planeItem);
+        menu.add(counterCornerInnerItem);
+
+        JMenuItem counterCornerOuterItem = createMenuItem("Theke Außenecke", "icons/counter_corner_outer.svg", () -> {
+            SceneData.Object3D obj = SceneData.createByType("Counter Outer Corner");
+            if (obj != null) {
+                obj.name = obj.name + " " + (objects.size() + 1);
+                addObject(obj);
+            }
+        });
+        menu.add(counterCornerOuterItem);
+
+        JMenuItem sinkItem = createMenuItem("Waschbecken", "icons/sink.svg", () -> {
+            SceneData.Object3D obj = SceneData.createByType("Sink");
+            if (obj != null) {
+                obj.name = obj.name + " " + (objects.size() + 1);
+                addObject(obj);
+            }
+        });
+        menu.add(sinkItem);
 
         menu.show(source, 0, source.getHeight());
     }
@@ -513,7 +530,6 @@ public class KitchenApp extends JFrame {
                 if (SwingUtilities.isLeftMouseButton(e)) {
                     SceneData.Object3D clicked = pickObject(e.getX(), e.getY());
                     if (clicked != null) {
-                        draggedObject = clicked;
                         renderer.selectedObject = clicked;
                         objectList.setSelectedValue(clicked, true);
 
@@ -521,7 +537,9 @@ public class KitchenApp extends JFrame {
                         Vector3f hitPoint = screenToGroundPlane(e.getX(), e.getY(), dragPlaneY);
                         dragOffset.set(hitPoint).sub(clicked.position);
                     } else {
-                        draggedObject = null;
+                        // Ins Nichts geklickt - Objekt-Selektion aufheben für Kamera-Rotation
+                        renderer.selectedObject = null;
+                        objectList.clearSelection();
                     }
                 }
             }
@@ -529,7 +547,6 @@ public class KitchenApp extends JFrame {
             @Override
             public void mouseReleased(MouseEvent e) {
                 isDraggingObject = false;
-                draggedObject = null;
             }
         });
 
@@ -542,14 +559,14 @@ public class KitchenApp extends JFrame {
                 if (Math.abs(e.getX() - pressedMouseX) > DRAG_THRESHOLD ||
                     Math.abs(e.getY() - pressedMouseY) > DRAG_THRESHOLD) {
                     isDragging = true;
-                    if (draggedObject != null) {
+                    if (renderer.selectedObject != null) {
                         isDraggingObject = true;
                     }
                 }
 
                 if (isDragging) {
-                    if (isDraggingObject && draggedObject != null) {
-                        moveObjectOnGround(draggedObject, e.getX(), e.getY());
+                    if (isDraggingObject && renderer.selectedObject != null) {
+                        moveObjectOnGround(renderer.selectedObject, e.getX(), e.getY());
                     } else {
                         renderer.cameraYaw -= dx * 0.5f;
                         renderer.cameraPitch = Math.max(-85f, Math.min(85f, renderer.cameraPitch + dy * 0.5f));
@@ -728,7 +745,7 @@ public class KitchenApp extends JFrame {
 
             int result = JOptionPane.showConfirmDialog(
                 this,
-                shapeName + " erkannt!\n\nMöchten Sie eine " + objectName + " zur Szene hinzufügen?",
+                shapeName + " erkannt!\n\nMöchten Sie " + objectName + " zur Szene hinzufügen?",
                 "Form erkannt",
                 JOptionPane.YES_NO_OPTION,
                 JOptionPane.QUESTION_MESSAGE
