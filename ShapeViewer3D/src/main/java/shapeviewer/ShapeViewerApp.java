@@ -448,7 +448,7 @@ public class ShapeViewerApp extends JFrame {
 
     private void importObjFile() {
         JFileChooser fc = new JFileChooser();
-        fc.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("OBJ Files", "obj"));
+        fc.setCurrentDirectory(new java.io.File("."));
         if (fc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
             SceneData.Object3D obj = SceneData.loadObj(fc.getSelectedFile());
             if (obj != null) {
@@ -673,7 +673,7 @@ public class ShapeViewerApp extends JFrame {
         while (webcamRunning) {
             if (capture.read(frame) && !frame.empty()) {
                 // Formerkennung durchführen wenn aktiviert
-                java.util.List<ShapeDetector.DetectedShape> detectedShapes = new java.util.ArrayList<>();
+                java.util.List<ShapeDetector.DetectedShape> detectedShapes;
                 if (shapeDetectionEnabled && shapeDetector != null) {
                     detectedShapes = shapeDetector.detectShapes(frame);
 

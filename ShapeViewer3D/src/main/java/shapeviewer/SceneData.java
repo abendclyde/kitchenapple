@@ -17,7 +17,6 @@ public class SceneData {
         public Vector3f rotation = new Vector3f(0, 0, 0);
         public Vector3f scale = new Vector3f(1, 1, 1);
         public Vector3f color = new Vector3f(0.8f, 0.8f, 0.8f);
-        public boolean isLineMode = false;
 
         private int vao, vbo, ebo;
         private boolean initialized = false;

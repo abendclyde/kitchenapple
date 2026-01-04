@@ -76,11 +76,9 @@ public class RenderEngine implements GLEventListener {
                         
                         vec3 result = (ambient + diff * 0.7 + spec * 0.3) * uColor;
                         
-                        // Auswahl-Highlight: goldener Rand-Effekt
+                        // Auswahl-Highlight: Aufhellung
                         if(isSelected == 1) {
-                            float rim = 1.0 - max(dot(viewDir, norm), 0.0);
-                            rim = pow(rim, 2.0);
-                            result += vec3(1.0, 0.8, 0.2) * rim * 0.5;
+                            result *= 1.3;
                         }
                         
                         gl_FragColor = vec4(result, 1.0);
