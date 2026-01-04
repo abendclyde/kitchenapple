@@ -24,37 +24,32 @@ import java.util.List;
 
 public class KitchenApp extends JFrame {
 
+    private static final int DRAG_THRESHOLD = 5;
+    private static final long SHAPE_DETECTION_COOLDOWN = 3000;
+    private static boolean opencvAvailable = false;
+
     private final List<SceneData.Object3D> objects = Collections.synchronizedList(new ArrayList<>());
     private final RenderEngine renderer;
     private final GLJPanel glCanvas;
     private final DefaultListModel<SceneData.Object3D> listModel;
     private final JList<SceneData.Object3D> objectList;
+    private final Vector3f dragOffset = new Vector3f();
 
-    // Webcam
     private JLabel lblWebcam;
     private boolean webcamRunning = false;
-    private Thread webcamThread;
-    private static boolean opencvAvailable = false;
-
-    // Formerkennung
     private ShapeDetector shapeDetector;
     private boolean shapeDetectionEnabled = true;
     private long lastShapeDetectionTime = 0;
-    private static final long SHAPE_DETECTION_COOLDOWN = 3000; // 3 Sekunden Cooldown
     private volatile boolean dialogOpen = false;
 
-    // Drag & Drop für Objekte
     private SceneData.Object3D draggedObject = null;
     private boolean isDraggingObject = false;
-    private int lastMouseX, lastMouseY, pressedMouseX, pressedMouseY;
     private boolean isDragging = false;
-    private static final int DRAG_THRESHOLD = 5;
-    private Vector3f dragOffset = new Vector3f();
+    private int lastMouseX, lastMouseY, pressedMouseX, pressedMouseY;
     private float dragPlaneY = 0;
 
     public static void main(String[] args) {
 
-        // FlatLaf Dark Theme aktivieren
         FlatDarkLaf.setup();
         UIManager.put("Button.arc", 8);
         UIManager.put("Component.arc", 8);
@@ -84,7 +79,6 @@ public class KitchenApp extends JFrame {
 
         getContentPane().setBackground(new Color(30, 30, 30));
 
-        // ShapeDetector initialisieren
         if (opencvAvailable) {
             shapeDetector = new ShapeDetector();
         }
@@ -92,7 +86,6 @@ public class KitchenApp extends JFrame {
         System.out.println("[INFO] Initialisiere OpenGL...");
         renderer = new RenderEngine(objects);
 
-        // Explizite GLCapabilities-Konfiguration für bessere Kompatibilität
         GLProfile glProfile = GLProfile.getDefault();
         GLCapabilities glCapabilities = new GLCapabilities(glProfile);
         glCapabilities.setDoubleBuffered(true);
@@ -182,7 +175,6 @@ public class KitchenApp extends JFrame {
     private void showAddObjectMenu(JButton source) {
         JPopupMenu menu = new JPopupMenu();
 
-        // Pyramide
         JMenuItem pyramidItem = createMenuItem("Pyramide", "icons/pyramid.svg", () -> {
             SceneData.Object3D obj = SceneData.createPyramid();
             obj.name = "Pyramid " + (objects.size() + 1);
@@ -190,7 +182,6 @@ public class KitchenApp extends JFrame {
         });
         menu.add(pyramidItem);
 
-        // Würfel
         JMenuItem cubeItem = createMenuItem("Würfel", "icons/cube.svg", () -> {
             SceneData.Object3D obj = SceneData.createCube();
             obj.name = "Cube " + (objects.size() + 1);
@@ -198,7 +189,6 @@ public class KitchenApp extends JFrame {
         });
         menu.add(cubeItem);
 
-        // Kugel
         JMenuItem sphereItem = createMenuItem("Kugel", "icons/sphere.svg", () -> {
             SceneData.Object3D obj = SceneData.createSphere(24, 16);
             obj.name = "Sphere " + (objects.size() + 1);
@@ -206,7 +196,6 @@ public class KitchenApp extends JFrame {
         });
         menu.add(sphereItem);
 
-        // Zylinder
         JMenuItem cylinderItem = createMenuItem("Zylinder", "icons/cylinder.svg", () -> {
             SceneData.Object3D obj = SceneData.createCylinder(24);
             obj.name = "Cylinder " + (objects.size() + 1);
@@ -214,7 +203,6 @@ public class KitchenApp extends JFrame {
         });
         menu.add(cylinderItem);
 
-        // Torus
         JMenuItem torusItem = createMenuItem("Torus", "icons/torus.svg", () -> {
             SceneData.Object3D obj = SceneData.createTorus(24, 12);
             obj.name = "Torus " + (objects.size() + 1);
@@ -224,7 +212,6 @@ public class KitchenApp extends JFrame {
 
         menu.addSeparator();
 
-        // Ebene
         JMenuItem planeItem = createMenuItem("Ebene", "icons/plane.svg", () -> {
             SceneData.Object3D obj = SceneData.createPlane();
             obj.name = "Plane " + (objects.size() + 1);
@@ -309,7 +296,6 @@ public class KitchenApp extends JFrame {
         lblWebcam.setOpaque(true);
         lblWebcam.setBorder(BorderFactory.createLineBorder(new Color(60, 60, 65)));
 
-        // Toggle-Button für Formerkennung
         JCheckBox chkShapeDetection = new JCheckBox("Formerkennung aktiv", shapeDetectionEnabled);
         chkShapeDetection.setFont(new Font("SansSerif", Font.PLAIN, 11));
         chkShapeDetection.setForeground(new Color(150, 150, 150));
@@ -336,39 +322,79 @@ public class KitchenApp extends JFrame {
         dialog.setLocationRelativeTo(this);
         dialog.setLayout(new BorderLayout());
 
+        // Original-Werte speichern für Abbrechen-Funktion
+        String originalName = obj.name;
+        float originalPosX = obj.position.x;
+        float originalPosY = obj.position.y;
+        float originalPosZ = obj.position.z;
+        float originalRotY = obj.rotation.y;
+        Vector3f originalColor = new Vector3f(obj.color);
+
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBorder(new EmptyBorder(20, 20, 20, 20));
 
         JPanel namePanel = createLabeledField("Name:");
         JTextField txtName = new JTextField(obj.name);
+        txtName.addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyReleased(KeyEvent e) {
+                obj.name = txtName.getText();
+                objectList.repaint();
+            }
+        });
         namePanel.add(txtName);
         content.add(namePanel);
         content.add(Box.createVerticalStrut(15));
 
         JPanel posXPanel = createLabeledField("Position X:");
-        JSlider sldX = new JSlider(-50, 50, (int)(obj.position.x * 10));
+        JSlider sldX = new JSlider(-100, 100, (int)(obj.position.x * 10));
         JLabel lblX = new JLabel(String.format("%.1f", obj.position.x));
         lblX.setPreferredSize(new Dimension(40, 20));
-        sldX.addChangeListener(e -> lblX.setText(String.format("%.1f", sldX.getValue() / 10f)));
+        sldX.addChangeListener(e -> {
+            obj.position.x = sldX.getValue() / 10f;
+            lblX.setText(String.format("%.1f", obj.position.x));
+            glCanvas.repaint();
+        });
         posXPanel.add(sldX);
         posXPanel.add(lblX);
         content.add(posXPanel);
 
         JPanel posYPanel = createLabeledField("Position Y:");
-        JSlider sldY = new JSlider(-50, 50, (int)(obj.position.y * 10));
+        JSlider sldY = new JSlider(-100, 100, (int)(obj.position.y * 10));
         JLabel lblY = new JLabel(String.format("%.1f", obj.position.y));
         lblY.setPreferredSize(new Dimension(40, 20));
-        sldY.addChangeListener(e -> lblY.setText(String.format("%.1f", sldY.getValue() / 10f)));
+        sldY.addChangeListener(e -> {
+            obj.position.y = sldY.getValue() / 10f;
+            lblY.setText(String.format("%.1f", obj.position.y));
+            glCanvas.repaint();
+        });
         posYPanel.add(sldY);
         posYPanel.add(lblY);
         content.add(posYPanel);
+
+        JPanel posZPanel = createLabeledField("Position Z:");
+        JSlider sldZ = new JSlider(-100, 100, (int)(obj.position.z * 10));
+        JLabel lblZ = new JLabel(String.format("%.1f", obj.position.z));
+        lblZ.setPreferredSize(new Dimension(40, 20));
+        sldZ.addChangeListener(e -> {
+            obj.position.z = sldZ.getValue() / 10f;
+            lblZ.setText(String.format("%.1f", obj.position.z));
+            glCanvas.repaint();
+        });
+        posZPanel.add(sldZ);
+        posZPanel.add(lblZ);
+        content.add(posZPanel);
 
         JPanel rotPanel = createLabeledField("Rotation Y:");
         JSlider sldRotY = new JSlider(0, 360, (int)Math.toDegrees(obj.rotation.y));
         JLabel lblRot = new JLabel(sldRotY.getValue() + "°");
         lblRot.setPreferredSize(new Dimension(40, 20));
-        sldRotY.addChangeListener(e -> lblRot.setText(sldRotY.getValue() + "°"));
+        sldRotY.addChangeListener(e -> {
+            obj.rotation.y = (float) Math.toRadians(sldRotY.getValue());
+            lblRot.setText(sldRotY.getValue() + "°");
+            glCanvas.repaint();
+        });
         rotPanel.add(sldRotY);
         rotPanel.add(lblRot);
         content.add(rotPanel);
@@ -390,6 +416,9 @@ public class KitchenApp extends JFrame {
             Color newColor = JColorChooser.showDialog(dialog, "Farbe wählen", btnColor.getBackground());
             if (newColor != null) {
                 btnColor.setBackground(newColor);
+                obj.color.set(newColor.getRed() / 255f, newColor.getGreen() / 255f, newColor.getBlue() / 255f);
+                objectList.repaint();
+                glCanvas.repaint();
             }
         });
         colorPanel.add(btnColor);
@@ -397,22 +426,24 @@ public class KitchenApp extends JFrame {
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton btnCancel = new JButton("Abbrechen");
-        btnCancel.addActionListener(e -> dialog.dispose());
-
-        JButton btnApply = new JButton("Anwenden");
-        btnApply.addActionListener(e -> {
-            obj.name = txtName.getText();
-            obj.position.x = sldX.getValue() / 10f;
-            obj.position.y = sldY.getValue() / 10f;
-            obj.rotation.y = (float) Math.toRadians(sldRotY.getValue());
-            Color c = btnColor.getBackground();
-            obj.color.set(c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f);
+        btnCancel.addActionListener(e -> {
+            // Originalwerte wiederherstellen
+            obj.name = originalName;
+            obj.position.x = originalPosX;
+            obj.position.y = originalPosY;
+            obj.position.z = originalPosZ;
+            obj.rotation.y = originalRotY;
+            obj.color.set(originalColor);
             objectList.repaint();
+            glCanvas.repaint();
             dialog.dispose();
         });
 
-        buttonPanel.add(btnCancel);
+        JButton btnApply = new JButton("OK");
+        btnApply.addActionListener(e -> dialog.dispose());
+
         buttonPanel.add(btnApply);
+        buttonPanel.add(btnCancel);
 
         dialog.add(content, BorderLayout.CENTER);
         dialog.add(buttonPanel, BorderLayout.SOUTH);
@@ -486,7 +517,6 @@ public class KitchenApp extends JFrame {
                         renderer.selectedObject = clicked;
                         objectList.setSelectedValue(clicked, true);
 
-                        // Initialisiere Drag-Offset für Ray-basiertes Dragging
                         dragPlaneY = clicked.position.y;
                         Vector3f hitPoint = screenToGroundPlane(e.getX(), e.getY(), dragPlaneY);
                         dragOffset.set(hitPoint).sub(clicked.position);
@@ -641,8 +671,7 @@ public class KitchenApp extends JFrame {
             webcamRunning = true;
             lblWebcam.setText("Starte...");
             lblWebcam.setForeground(new Color(100, 180, 100));
-            webcamThread = new Thread(this::webcamLoop);
-            webcamThread.start();
+            new Thread(this::webcamLoop).start();
         }
     }
 
@@ -663,19 +692,17 @@ public class KitchenApp extends JFrame {
         Mat frame = new Mat();
         while (webcamRunning) {
             if (capture.read(frame) && !frame.empty()) {
-                // Formerkennung durchführen wenn aktiviert
                 java.util.List<ShapeDetector.DetectedShape> detectedShapes;
                 if (shapeDetectionEnabled && shapeDetector != null) {
                     detectedShapes = shapeDetector.detectShapes(frame);
 
-                    // Dialog anzeigen für gültige Mappings (mit Cooldown)
                     long currentTime = System.currentTimeMillis();
                     if (!dialogOpen && currentTime - lastShapeDetectionTime > SHAPE_DETECTION_COOLDOWN) {
                         for (ShapeDetector.DetectedShape shape : detectedShapes) {
                             if (ShapeDetector.isValidMapping(shape)) {
                                 lastShapeDetectionTime = currentTime;
                                 showAddShapeDialog(shape);
-                                break; // Nur ein Dialog pro Durchgang
+                                break;
                             }
                         }
                     }
