@@ -1,6 +1,10 @@
-# ShapeViewer3D - Technische Dokumentation
+# KitchenMaker - Technische Dokumentation
 
-Diese Dokumentation erklärt die technischen Implementierungsdetails des ShapeViewer3D-Projekts.
+Diese Dokumentation erklärt die technischen Implementierungsdetails des KitchenMaker-Projekts - einer 3D-Küchenplanungsanwendung mit OpenCV-basierter Formenerkennung.
+
+**Version:** 1.0  
+**Aktualisiert:** 2026-01-05  
+**Technologie-Stack:** Java 17, JOGL 2.6.0, OpenCV 4.9.0, FlatLaf 3.4, JOML 1.10.5
 
 ---
 
@@ -15,6 +19,8 @@ Diese Dokumentation erklärt die technischen Implementierungsdetails des ShapeVi
 7. [OBJ-Files lesen und rendern](#7-obj-files-lesen-und-rendern)
 8. [Farbauswahl für Objekte](#8-farbauswahl-für-objekte)
 9. [Objekterkennung im Webcam-Feed](#9-objekterkennung-im-webcam-feed)
+10. [Theme-System](#10-theme-system)
+11. [Tastaturkürzel und Bedienung](#11-tastaturkürzel-und-bedienung)
 
 ---
 
@@ -22,7 +28,7 @@ Diese Dokumentation erklärt die technischen Implementierungsdetails des ShapeVi
 
 ### 1.1 FlatLaf Dark Theme
 
-Das Projekt verwendet **FlatLaf** als modernes Look-and-Feel-Framework. Die Initialisierung erfolgt in der `main()`-Methode von `ShapeViewerApp.java`:
+Das Projekt verwendet **FlatLaf** als modernes Look-and-Feel-Framework. Die Initialisierung erfolgt in der `main()`-Methode von `KitchenApp.java`:
 
 ```java
 FlatDarkLaf.setup();
@@ -78,23 +84,57 @@ private JButton createToolbarButton(String iconPath, String tooltip) {
 ```
 
 **Verfügbare Buttons:**
-- **Import** (`import.svg`): OBJ-Dateien importieren
-- **Hinzufügen** (`plus.svg`): Neue primitive Formen hinzufügen
-- **Bearbeiten** (`edit.svg`): Ausgewähltes Objekt bearbeiten
-- **Löschen** (`delete.svg`): Ausgewähltes Objekt entfernen
-- **Webcam** (`camera.svg`): Webcam ein-/ausschalten
+- **Import** (`import.svg`): OBJ-Dateien importieren (Ctrl+O)
+- **Hinzufügen** (`plus.svg`): Öffnet Menü zum Hinzufügen von Küchenobjekten
+- **Bearbeiten** (`edit.svg`): Ausgewähltes Objekt bearbeiten (auch per Doppelklick)
+- **Löschen** (`delete.svg`): Ausgewähltes Objekt entfernen (auch per Delete-Taste)
+- **Webcam** (`camera.svg`): Webcam ein-/ausschalten für automatische Formenerkennung
+
+Das **Hinzufügen-Menü** enthält folgende Küchenelemente:
+- **Kühlschrank** (Fridge) - `kuehlschrank.obj`
+- **Mikrowelle** (Microwave) - `mikrowelle.obj`
+- **Backofen** (Oven) - `backofen.obj`
+- **Theke** (Counter) - `theke.obj`
+- **Theke Innenecke** (Counter Inner Corner) - `theke_ecke_innen.obj`
+- **Theke Außenecke** (Counter Outer Corner) - `theke_ecke_aussen.obj`
+- **Waschbecken** (Sink) - `waschbecken.obj`
 
 ### 1.4 Seitenpanel
 
 Das Seitenpanel enthält:
-1. **Objektliste** (`JList`): Zeigt alle Szenenobjekte mit farbigen Icons
-2. **Webcam-Panel**: Zeigt den Webcam-Feed mit Formerkennung
+1. **Küchenelemente-Liste** (`JList`): Zeigt alle platzierten Küchenmöbel mit farbigen Icons
+2. **Webcam-Panel**: Zeigt den Live-Feed mit Echtzeit-Formenerkennung (260x195 Pixel)
 
-Die Objektliste verwendet einen benutzerdefinierten `CellRenderer`:
+Die Küchenelemente-Liste verwendet einen benutzerdefinierten `CellRenderer`:
 ```java
 private static class ObjectListCellRenderer extends DefaultListCellRenderer {
-    // Zeigt Objektname mit farbigem Icon
-    // Selektierte Objekte werden mit blauem Hintergrund hervorgehoben
+    @Override
+    public Component getListCellRendererComponent(JList<?> list, Object value, 
+            int index, boolean isSelected, boolean cellHasFocus) {
+        super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+        
+        if (value instanceof SceneData.Object3D obj) {
+            setText(obj.name);
+            
+            // Farbiges Icon basierend auf Objektfarbe
+            BufferedImage icon = new BufferedImage(16, 16, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = icon.createGraphics();
+            g.setColor(new Color(obj.color.x, obj.color.y, obj.color.z));
+            g.fillRect(0, 0, 16, 16);
+            g.dispose();
+            setIcon(new ImageIcon(icon));
+            
+            // Auswahl-Highlighting
+            if (isSelected) {
+                setBackground(Theme.SELECTION);
+                setForeground(Theme.TEXT_PRIMARY);
+            } else {
+                setBackground(Theme.LIST_BACKGROUND);
+                setForeground(Theme.TEXT_SECONDARY);
+            }
+        }
+        return this;
+    }
 }
 ```
 
@@ -104,7 +144,7 @@ private static class ObjectListCellRenderer extends DefaultListCellRenderer {
 
 ### 2.1 OpenGL-Initialisierung
 
-Die 3D-Ansicht verwendet **JOGL** (Java OpenGL Bindings). Die Konfiguration erfolgt in `ShapeViewerApp`:
+Die 3D-Ansicht verwendet **JOGL** (Java OpenGL Bindings). Die Konfiguration erfolgt in `KitchenApp`:
 
 ```java
 GLProfile glProfile = GLProfile.getDefault();
@@ -559,13 +599,79 @@ public static Object3D loadObj(File file) {
 }
 ```
 
-### 7.2 Vertex-Format
+### 7.2 Objekt-Definitionen
+
+Die verfügbaren Küchenmöbel werden in einer zentralen Map definiert:
+
+```java
+private static final Map<String, Object[]> OBJECT_DEFINITIONS = Map.of(
+    "Fridge", new Object[]{
+        "kuehlschrank.obj", 
+        "Kühlschrank", 
+        new float[]{0.9f, 0.95f, 1.0f}  // Hellblau/Weiß
+    },
+    "Microwave", new Object[]{
+        "mikrowelle.obj", 
+        "Mikrowelle", 
+        new float[]{0.2f, 0.2f, 0.2f}   // Dunkelgrau
+    },
+    "Oven", new Object[]{
+        "backofen.obj", 
+        "Backofen", 
+        new float[]{0.15f, 0.15f, 0.15f} // Schwarz
+    },
+    "Counter", new Object[]{
+        "theke.obj", 
+        "Theke", 
+        new float[]{0.6f, 0.5f, 0.4f}   // Holzfarbe
+    },
+    "Counter Inner Corner", new Object[]{
+        "theke_ecke_innen.obj", 
+        "Theke Innenecke", 
+        new float[]{0.6f, 0.5f, 0.4f}
+    },
+    "Counter Outer Corner", new Object[]{
+        "theke_ecke_aussen.obj", 
+        "Theke Außenecke", 
+        new float[]{0.6f, 0.5f, 0.4f}
+    },
+    "Sink", new Object[]{
+        "waschbecken.obj", 
+        "Waschbecken", 
+        new float[]{0.8f, 0.85f, 0.9f}  // Silber/Metall
+    }
+);
+```
+
+**Objekt-Erstellung:**
+```java
+public static Object3D createByType(String typeName) {
+    Object[] definition = OBJECT_DEFINITIONS.get(typeName);
+    if (definition == null) return null;
+
+    String resourcePath = (String) definition[0];
+    String displayName = (String) definition[1];
+    float[] color = (float[]) definition[2];
+
+    try (InputStream is = SceneData.class.getResourceAsStream("/" + resourcePath);
+         BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
+        Object3D obj = parseObj(br, displayName);
+        if (obj != null) obj.color.set(color[0], color[1], color[2]);
+        return obj;
+    } catch (Exception e) {
+        e.printStackTrace();
+        return null;
+    }
+}
+```
+
+### 7.3 Vertex-Format
 
 Jeder Vertex besteht aus **6 Floats**:
 - Position: `x, y, z`
 - Normale: `nx, ny, nz`
 
-### 7.3 Bounding-Box Berechnung
+### 7.4 Bounding-Box Berechnung
 
 ```java
 private void calculateBounds() {
@@ -581,7 +687,9 @@ private void calculateBounds() {
 }
 ```
 
-### 7.4 VAO/VBO-Initialisierung
+Die Bounding-Box wird für **Ray-Casting** (Objekt-Selektion per Mausklick) und **Collision Detection** verwendet.
+
+### 7.5 VAO/VBO-Initialisierung
 
 ```java
 private void init(GL2 gl) {
@@ -786,56 +894,302 @@ private ShapeType classifyShape(int vertices, MatOfPoint contour, double area) {
 ### 9.6 Form-zu-3D-Objekt Mapping
 
 ```java
+private static final Map<String, String> SHAPE_TO_OBJECT = Map.of(
+    "RED_TRIANGLE", "Fridge",              // Rot + Dreieck → Kühlschrank
+    "GREEN_CIRCLE", "Sink",                // Grün + Kreis → Waschbecken
+    "BLUE_RECTANGLE", "Microwave",         // Blau + Viereck → Mikrowelle
+    "BLUE_TRIANGLE", "Oven",               // Blau + Dreieck → Backofen
+    "GREEN_RECTANGLE", "Counter",          // Grün + Viereck → Theke
+    "RED_CIRCLE", "Counter Inner Corner",  // Rot + Kreis → Innenecke
+    "BLUE_CIRCLE", "Counter Outer Corner"  // Blau + Kreis → Außenecke
+);
+
 public String get3DObjectName() {
-    if (colorType == ColorType.RED && shapeType == ShapeType.TRIANGLE) 
-        return "Pyramide";
-    if (colorType == ColorType.GREEN && shapeType == ShapeType.CIRCLE) 
-        return "Kugel";
-    if (colorType == ColorType.BLUE && shapeType == ShapeType.RECTANGLE) 
-        return "Würfel";
-    return null;
+    return SHAPE_TO_OBJECT.get(colorType.name() + "_" + shapeType.name());
 }
 ```
 
 **Erkennungsregeln:**
-| Farbe | Form | 3D-Objekt |
-|-------|------|-----------|
-| Rot | Dreieck | Pyramide |
-| Grün | Kreis | Kugel |
-| Blau | Viereck | Würfel |
+| Farbe | Form | 3D-Küchenelement |
+|-------|------|------------------|
+| Rot | Dreieck | Kühlschrank (Fridge) |
+| Grün | Kreis | Waschbecken (Sink) |
+| Blau | Viereck | Mikrowelle (Microwave) |
+| Blau | Dreieck | Backofen (Oven) |
+| Grün | Viereck | Theke (Counter) |
+| Rot | Kreis | Theken-Innenecke |
+| Blau | Kreis | Theken-Außenecke |
 
 ### 9.7 Dialog bei Erkennung
 
 Bei erkannter Form erscheint nach einem **3-Sekunden-Cooldown** ein Dialog:
 
 ```java
-private void showAddShapeDialog(DetectedShape shape) {
-    String shapeName = shape.getColorName() + "es " + shape.getShapeName();
-    String objectName = shape.get3DObjectName();
-    
-    int result = JOptionPane.showConfirmDialog(this,
-        shapeName + " erkannt!\n\nMöchten Sie eine " + objectName + " hinzufügen?",
-        "Form erkannt", JOptionPane.YES_NO_OPTION);
-    
-    if (result == JOptionPane.YES_OPTION) {
-        SceneData.Object3D obj = SceneData.createFromDetectedShape(shape, objects.size());
-        addObject(obj);
-    }
+private void showAddShapeDialog(ShapeDetector.DetectedShape shape) {
+    dialogOpen = true;
+    SwingUtilities.invokeLater(() -> {
+        String shapeName = shape.getColorName() + "es " + shape.getShapeName();
+        String objectName = shape.get3DObjectName();
+
+        int result = JOptionPane.showConfirmDialog(
+            this,
+            shapeName + " erkannt!\n\nMöchten Sie " + objectName + " zur Szene hinzufügen?",
+            "Form erkannt",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.QUESTION_MESSAGE
+        );
+
+        if (result == JOptionPane.YES_OPTION) {
+            SceneData.Object3D obj = SceneData.createFromDetectedShape(shape, objects.size());
+            if (obj != null) addObject(obj);
+        }
+
+        dialogOpen = false;
+        lastShapeDetectionTime = System.currentTimeMillis();
+    });
 }
 ```
+
+**Verhalten:**
+- **Cooldown**: 3 Sekunden zwischen Erkennungen
+- **Dialog-Sperre**: Während ein Dialog offen ist, werden keine weiteren Formen erkannt
+- **Automatische Platzierung**: Erkannte Objekte werden bei (0, 0, 0) platziert
+- **Nummerierung**: Automatische Durchnummerierung (z.B. "Fridge 1", "Fridge 2")
+
+Die erkannten Formen werden automatisch mit den passenden OBJ-Modellen verknüpft und in der Szene platziert.
+
+---
+
+## 10. Theme-System
+
+### 10.1 Zentrale Theme-Klasse
+
+Die Klasse `Theme.java` definiert alle UI-Farben, Schriftarten und Dimensionen zentral:
+
+```java
+public final class Theme {
+    // Hintergrundfarben
+    public static final Color BACKGROUND = new Color(30, 30, 30);
+    public static final Color BACKGROUND_DARK = new Color(25, 25, 30);
+    public static final Color PANEL = new Color(35, 35, 40);
+    public static final Color LIST_BACKGROUND = new Color(40, 40, 45);
+
+    // Textfarben
+    public static final Color TEXT_PRIMARY = Color.WHITE;
+    public static final Color TEXT_SECONDARY = new Color(220, 220, 220);
+    public static final Color TEXT_MUTED = new Color(180, 180, 180);
+    public static final Color TEXT_LABEL = new Color(150, 150, 150);
+    public static final Color TEXT_DISABLED = new Color(100, 100, 100);
+
+    // Akzentfarben
+    public static final Color SELECTION = new Color(70, 130, 180);
+    public static final Color HOVER = new Color(60, 60, 70);
+    public static final Color BORDER = new Color(60, 60, 65);
+    
+    // Statusfarben
+    public static final Color SUCCESS = new Color(100, 180, 100);
+    public static final Color ERROR = new Color(200, 80, 80);
+
+    // Schriftarten
+    public static final Font TITLE = new Font("SansSerif", Font.BOLD, 14);
+    public static final Font LABEL = new Font("SansSerif", Font.BOLD, 12);
+    public static final Font LABEL_SMALL = new Font("SansSerif", Font.PLAIN, 11);
+
+    // Standard-Dimensionen
+    public static final Dimension TOOLBAR_BUTTON = new Dimension(36, 36);
+    public static final Dimension SIDE_PANEL = new Dimension(280, 0);
+    public static final Dimension WEBCAM_PREVIEW = new Dimension(260, 195);
+    public static final Dimension COLOR_BUTTON = new Dimension(80, 28);
+}
+```
+
+### 10.2 Verwendung im Code
+
+Die Theme-Konstanten werden durchgängig in der gesamten Anwendung verwendet:
+
+```java
+// Panel-Styling
+panel.setBackground(Theme.BACKGROUND);
+label.setForeground(Theme.TEXT_PRIMARY);
+
+// Button-Dimensionen
+button.setPreferredSize(Theme.TOOLBAR_BUTTON);
+
+// Hover-Effekte
+button.setBackground(Theme.HOVER);
+```
+
+### 10.3 Vorteile des Theme-Systems
+
+- ✅ **Konsistenz**: Einheitliches Erscheinungsbild in der gesamten Anwendung
+- ✅ **Wartbarkeit**: Farben und Größen zentral änderbar
+- ✅ **Lesbarkeit**: Semantische Namen statt Hex-Codes
+- ✅ **Skalierbarkeit**: Einfaches Hinzufügen neuer Theme-Varianten
+
+---
+
+## 11. Tastaturkürzel und Bedienung
+
+### 11.1 Tastaturkürzel
+
+| Taste | Funktion |
+|-------|----------|
+| **Ctrl+O** | OBJ-Datei importieren |
+| **Delete** | Ausgewähltes Objekt löschen |
+| **Doppelklick** | Objekt in der Liste bearbeiten |
+
+### 11.2 Maussteuerung
+
+| Aktion | Funktion |
+|--------|----------|
+| **Linksklick** | Objekt auswählen |
+| **Linksklick + Ziehen** | Objekt auf dem Boden bewegen |
+| **Rechtsklick + Ziehen** | Kamera rotieren (Orbit) |
+| **Mausrad** | Zoom ein/aus (Kamera-Distanz) |
+
+### 11.3 Kamera-Steuerung
+
+- **Yaw** (Horizontal): -∞ bis +∞ Grad
+- **Pitch** (Vertikal): -85° bis +85° (begrenzt, verhindert Überschlag)
+- **Distance** (Zoom): 1 bis 50 Einheiten
+- **FOV** (Sichtfeld): 60° (konfigurierbar)
+
+### 11.4 Objekt-Bearbeitung
+
+Der **Bearbeitungs-Dialog** bietet folgende Optionen:
+- **Name**: Umbenennung des Objekts
+- **Position**: X, Y, Z Koordinaten
+- **Rotation**: X, Y, Z Achsen (in Radianten)
+- **Skalierung**: X, Y, Z Faktoren
+- **Farbe**: RGB-Farbauswahl via ColorChooser
 
 ---
 
 ## Zusammenfassung
 
-| Komponente | Technologie |
-|------------|-------------|
-| GUI-Framework | Swing + FlatLaf |
-| 3D-Rendering | JOGL (OpenGL 2.0) |
-| Shader | GLSL 1.20 (Blinn-Phong) |
-| Mathematik | JOML |
-| Webcam/CV | OpenCV 4.x |
-| Icons | FlatSVGIcon |
+**KitchenMaker** ist eine 3D-Küchenplanungsanwendung, die moderne Technologien für intuitive Bedienung kombiniert:
 
-Die Anwendung kombiniert klassische Desktop-UI-Entwicklung mit moderner 3D-Grafik und Computer Vision für eine intuitive Benutzerinteraktion.
+| Komponente | Technologie | Version |
+|------------|-------------|---------|
+| GUI-Framework | Swing + FlatLaf | 3.4 |
+| 3D-Rendering | JOGL (OpenGL 2.0) | 2.6.0 |
+| Shader | GLSL 1.20 (Blinn-Phong) | - |
+| Mathematik | JOML | 1.10.5 |
+| Webcam/CV | OpenCV | 4.9.0 |
+| Icons | FlatSVGIcon (FlatLaf Extras) | 3.4 |
+| Build-Tool | Maven | - |
+| Java-Version | Java 17 | - |
+
+### Hauptfunktionen:
+- ✅ **3D-Visualisierung** mit OpenGL und modernem Shader-basiertem Rendering
+- ✅ **Interaktive Kamera-Steuerung** (Orbit, Zoom, Pan)
+- ✅ **Objekt-Manipulation** (Click-to-Select, Drag-to-Move)
+- ✅ **Automatische Formenerkennung** via OpenCV und Webcam
+- ✅ **Küchenelemente-Bibliothek** (7 verschiedene OBJ-Modelle)
+- ✅ **Dark Theme UI** mit FlatLaf für moderne Optik
+- ✅ **Echtzeit-Rendering** mit 60 FPS
+
+### Verfügbare Küchenmöbel:
+1. **Theke** (Counter) - `theke.obj`
+2. **Theken-Innenecke** - `theke_ecke_innen.obj`
+3. **Theken-Außenecke** - `theke_ecke_aussen.obj`
+4. **Kühlschrank** (Fridge) - `kuehlschrank.obj`
+5. **Backofen** (Oven) - `backofen.obj`
+6. **Mikrowelle** (Microwave) - `mikrowelle.obj`
+7. **Waschbecken** (Sink) - `waschbecken.obj`
+
+Die Anwendung kombiniert klassische Desktop-UI-Entwicklung mit moderner 3D-Grafik und Computer Vision für eine intuitive Küchenplanung.
+
+---
+
+## Build und Ausführung
+
+### Voraussetzungen
+- **Java 17** oder höher
+- **Maven 3.6+**
+- **Webcam** (optional, für Formenerkennung)
+
+### Projekt kompilieren
+
+```bash
+mvn clean compile
+```
+
+### Anwendung ausführen
+
+**Windows:**
+```batch
+run_win.bat
+```
+
+**macOS/Linux:**
+```bash
+./run_mac.sh
+```
+
+**Oder direkt mit Maven:**
+```bash
+mvn exec:java
+```
+
+### JAR-Datei erstellen
+
+```bash
+mvn clean package
+```
+
+Die ausführbare JAR-Datei wird im `target/` Verzeichnis erstellt:
+- `kitchenmaker-1.0.jar` - JAR mit allen Abhängigkeiten
+
+**JAR ausführen:**
+```bash
+java -jar target/kitchenmaker-1.0.jar
+```
+
+### Abhängigkeiten validieren
+
+```bash
+mvn validate
+```
+
+Prüft die pom.xml und alle Dependencies auf Verfügbarkeit.
+
+---
+
+## Projektstruktur
+
+```
+KitchenMaker/
+├── pom.xml                          # Maven-Konfiguration
+├── run_win.bat                      # Windows-Startskript
+├── run_mac.sh                       # macOS/Linux-Startskript
+├── DOCUMENTATION.md                 # Diese Dokumentation
+├── src/main/
+│   ├── java/kitchenmaker/
+│   │   ├── KitchenApp.java         # Hauptanwendung + GUI
+│   │   ├── RenderEngine.java       # OpenGL Render-Engine
+│   │   ├── SceneData.java          # 3D-Objekt-Management
+│   │   ├── ShapeDetector.java      # OpenCV Formenerkennung
+│   │   └── Theme.java              # UI-Theme-Definitionen
+│   └── resources/
+│       ├── *.obj                    # 3D-Modelle (7 Küchenmöbel)
+│       └── icons/*.svg              # UI-Icons (13 SVGs)
+└── target/                          # Build-Ausgabe (generiert)
+```
+
+### Wichtige Dateien
+
+| Datei | Zweck |
+|-------|-------|
+| `KitchenApp.java` | Hauptklasse, UI-Setup, Event-Handling |
+| `RenderEngine.java` | OpenGL-Rendering, Shader, Kamera |
+| `SceneData.java` | OBJ-Loader, Grid-Generator, Objekt-Definitions |
+| `ShapeDetector.java` | OpenCV-Formenerkennung (Farbe + Shape) |
+| `Theme.java` | Zentrale Theme-Konstanten |
+| `pom.xml` | Maven-Abhängigkeiten und Build-Config |
+
+---
+
+**Entwickelt mit ❤️ für intuitive Küchenplanung**  
+**Technologie-Stack:** Java 17 • JOGL 2.6.0 • OpenCV 4.9.0 • FlatLaf 3.4 • JOML 1.10.5
 
