@@ -30,7 +30,7 @@ public class KitchenApp extends JFrame {
 
     private final List<SceneData.Object3D> objects = Collections.synchronizedList(new ArrayList<>());
     private final RenderEngine renderer;
-    private final GLJPanel glCanvas;
+    private final GLJPanel gljPanel;
     private final DefaultListModel<SceneData.Object3D> listModel;
     private final JList<SceneData.Object3D> objectList;
     private final Vector3f dragOffset = new Vector3f();
@@ -86,8 +86,8 @@ public class KitchenApp extends JFrame {
         glCapabilities.setDoubleBuffered(true);
         glCapabilities.setHardwareAccelerated(true);
 
-        glCanvas = new GLJPanel(glCapabilities);
-        glCanvas.addGLEventListener(renderer);
+        gljPanel = new GLJPanel(glCapabilities);
+        gljPanel.addGLEventListener(renderer);
 
         listModel = new DefaultListModel<>();
         objectList = new JList<>(listModel);
@@ -110,7 +110,7 @@ public class KitchenApp extends JFrame {
         });
 
         add(createToolBar(), BorderLayout.NORTH);
-        add(glCanvas, BorderLayout.CENTER);
+        add(gljPanel, BorderLayout.CENTER);
         add(createSidePanel(), BorderLayout.WEST);
 
 
@@ -118,7 +118,7 @@ public class KitchenApp extends JFrame {
         setLocationRelativeTo(null);
         setVisible(true);
 
-        new FPSAnimator(glCanvas, 60).start();
+        new FPSAnimator(gljPanel, 60).start();
     }
 
     private JToolBar createToolBar() {
@@ -295,13 +295,13 @@ public class KitchenApp extends JFrame {
 
         // Position-Slider
         content.add(createSlider("Position X:", -100, 100, (int)(obj.position.x * 10),
-            v -> { obj.position.x = v / 10f; glCanvas.repaint(); }, "%.1f", 10f));
+            v -> { obj.position.x = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
         content.add(createSlider("Position Y:", -100, 100, (int)(obj.position.y * 10),
-            v -> { obj.position.y = v / 10f; glCanvas.repaint(); }, "%.1f", 10f));
+            v -> { obj.position.y = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
         content.add(createSlider("Position Z:", -100, 100, (int)(obj.position.z * 10),
-            v -> { obj.position.z = v / 10f; glCanvas.repaint(); }, "%.1f", 10f));
+            v -> { obj.position.z = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
         content.add(createSlider("Rotation Y:", 0, 360, (int)Math.toDegrees(obj.rotation.y),
-            v -> { obj.rotation.y = (float)Math.toRadians(v); glCanvas.repaint(); }, "%d°", 1f));
+            v -> { obj.rotation.y = (float)Math.toRadians(v); gljPanel.repaint(); }, "%d°", 1f));
 
         content.add(Box.createVerticalStrut(10));
 
@@ -321,7 +321,7 @@ public class KitchenApp extends JFrame {
                 colorButton.setBackground(newColor);
                 obj.color.set(newColor.getRed() / 255f, newColor.getGreen() / 255f, newColor.getBlue() / 255f);
                 objectList.repaint();
-                glCanvas.repaint();
+                gljPanel.repaint();
             }
         });
         colorPanel.add(colorButton);
@@ -336,7 +336,7 @@ public class KitchenApp extends JFrame {
             obj.rotation.y = originalRotY;
             obj.color.set(originalColor);
             objectList.repaint();
-            glCanvas.repaint();
+            gljPanel.repaint();
             dialog.dispose();
         });
         JButton applyButton = new JButton("OK");
@@ -418,7 +418,7 @@ public class KitchenApp extends JFrame {
             return false;
         });
 
-        glCanvas.addMouseListener(new MouseAdapter() {
+        gljPanel.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
                 pressedMouseX = lastMouseX = e.getX();
@@ -449,7 +449,7 @@ public class KitchenApp extends JFrame {
             }
         });
 
-        glCanvas.addMouseMotionListener(new MouseMotionAdapter() {
+        gljPanel.addMouseMotionListener(new MouseMotionAdapter() {
             @Override
             public void mouseDragged(MouseEvent e) {
                 int dx = e.getX() - lastMouseX;
@@ -470,7 +470,7 @@ public class KitchenApp extends JFrame {
                         renderer.cameraYaw -= dx * 0.5f;
                         renderer.cameraPitch = Math.max(-85f, Math.min(85f, renderer.cameraPitch + dy * 0.5f));
                     }
-                    glCanvas.repaint();
+                    gljPanel.repaint();
                 }
 
                 lastMouseX = e.getX();
@@ -478,7 +478,7 @@ public class KitchenApp extends JFrame {
             }
         });
 
-        glCanvas.addMouseWheelListener(e ->
+        gljPanel.addMouseWheelListener(e ->
             renderer.cameraDistance = Math.max(1f, Math.min(50f,
                 renderer.cameraDistance + (float)e.getPreciseWheelRotation() * 0.5f))
         );
@@ -487,8 +487,8 @@ public class KitchenApp extends JFrame {
     private record Ray(Vector3f origin, Vector3f direction) {}
 
     private Ray createRayFromMouse(int mouseX, int mouseY) {
-        int w = glCanvas.getWidth();
-        int h = glCanvas.getHeight();
+        int w = gljPanel.getWidth();
+        int h = gljPanel.getHeight();
         float aspect = (float) w / h;
 
         float ndcX = (2.0f * mouseX) / w - 1.0f;
