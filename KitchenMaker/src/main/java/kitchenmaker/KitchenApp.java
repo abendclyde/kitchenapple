@@ -47,6 +47,10 @@ public class KitchenApp extends JFrame {
     private int lastMouseX, lastMouseY, pressedMouseX, pressedMouseY;
     private float dragPlaneY = 0;
 
+    // Animationseinstellungen
+    private SceneData.AppearanceMode currentAppearanceMode = SceneData.AppearanceMode.FALL_DOWN;
+    private float animationDurationSeconds = 0.8f;
+
     public static void main(String[] args) {
         FlatDarkLaf.setup();
         UIManager.put("Button.arc", 8);
@@ -151,6 +155,42 @@ public class KitchenApp extends JFrame {
         JButton webcamButton = createToolbarButton("icons/camera.svg", "Webcam Start/Stop");
         webcamButton.addActionListener(e -> toggleWebcam());
         toolbar.add(webcamButton);
+
+        toolbar.addSeparator(new Dimension(20, 0));
+
+        // Animationsmodus-Auswahl
+        JLabel animLabel = new JLabel("Animation:");
+        animLabel.setForeground(Theme.TEXT_LABEL);
+        toolbar.add(animLabel);
+        toolbar.add(Box.createHorizontalStrut(5));
+
+        JComboBox<SceneData.AppearanceMode> animModeCombo = new JComboBox<>(SceneData.AppearanceMode.values());
+        animModeCombo.setSelectedItem(currentAppearanceMode);
+        animModeCombo.setMaximumSize(new Dimension(150, 30));
+        animModeCombo.addActionListener(e -> currentAppearanceMode = (SceneData.AppearanceMode) animModeCombo.getSelectedItem());
+        toolbar.add(animModeCombo);
+
+        toolbar.add(Box.createHorizontalStrut(15));
+
+        // Animationsdauer-Slider
+        JLabel durationLabel = new JLabel("Dauer:");
+        durationLabel.setForeground(Theme.TEXT_LABEL);
+        toolbar.add(durationLabel);
+        toolbar.add(Box.createHorizontalStrut(5));
+
+        JSlider durationSlider = new JSlider(0, 30, (int)(animationDurationSeconds * 10));
+        durationSlider.setMaximumSize(new Dimension(100, 30));
+        durationSlider.setToolTipText("Animationsdauer in Sekunden");
+        JLabel durationValueLabel = new JLabel(String.format("%.1fs", animationDurationSeconds));
+        durationValueLabel.setForeground(Theme.TEXT_LABEL);
+        durationValueLabel.setPreferredSize(new Dimension(35, 20));
+        durationSlider.addChangeListener(e -> {
+            animationDurationSeconds = durationSlider.getValue() / 10.0f;
+            durationValueLabel.setText(String.format("%.1fs", animationDurationSeconds));
+        });
+        toolbar.add(durationSlider);
+        toolbar.add(Box.createHorizontalStrut(5));
+        toolbar.add(durationValueLabel);
 
         toolbar.add(Box.createHorizontalGlue());
 
@@ -375,6 +415,9 @@ public class KitchenApp extends JFrame {
     }
 
     private void addObject(SceneData.Object3D obj) {
+        // Animation starten basierend auf aktuellen Einstellungen
+        obj.startAnimation(currentAppearanceMode, animationDurationSeconds);
+
         objects.add(obj);
         listModel.addElement(obj);
         objectList.setSelectedValue(obj, true);

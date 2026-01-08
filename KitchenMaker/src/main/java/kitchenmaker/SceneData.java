@@ -9,6 +9,25 @@ import java.util.*;
 
 public class SceneData {
 
+    // Enum für Erscheinungsmodi
+    public enum AppearanceMode {
+        NONE("Aus"),
+        FALL_DOWN("Von oben fallen"),
+        RISE_UP("Von unten steigen"),
+        GROW("Wachsen");
+
+        private final String displayName;
+
+        AppearanceMode(String displayName) {
+            this.displayName = displayName;
+        }
+
+        @Override
+        public String toString() {
+            return displayName;
+        }
+    }
+
     public static class Object3D {
         public String name;
         public float[] vertices;
@@ -17,6 +36,16 @@ public class SceneData {
         public Vector3f rotation = new Vector3f(0, 0, 0);
         public Vector3f scale = new Vector3f(1, 1, 1);
         public Vector3f color = new Vector3f(0.8f, 0.8f, 0.8f);
+
+        // Animationsfelder
+        public boolean isAnimating = false;
+        public AppearanceMode animationMode = AppearanceMode.NONE;
+        public long animationStartTime = 0;
+        public float animationDuration = 0; // in Sekunden
+        public Vector3f targetPosition = new Vector3f();
+        public Vector3f targetScale = new Vector3f(1, 1, 1);
+        public Vector3f startPosition = new Vector3f();
+        public Vector3f startScale = new Vector3f(1, 1, 1);
 
         private int vao, vbo, ebo;
         private boolean initialized = false;
@@ -28,6 +57,89 @@ public class SceneData {
             this.vertices = vertices;
             this.indices = indices;
             calculateBounds();
+        }
+
+
+        public void startAnimation(AppearanceMode mode, float durationSeconds) {
+            if (mode == AppearanceMode.NONE || durationSeconds <= 0) {
+                isAnimating = false;
+                return;
+            }
+
+            this.animationMode = mode;
+            this.animationDuration = durationSeconds;
+            this.animationStartTime = System.currentTimeMillis();
+            this.isAnimating = true;
+
+            // Zielwerte speichern (aktuelle Position/Scale)
+            this.targetPosition.set(this.position);
+            this.targetScale.set(this.scale);
+
+            // Startwerte je nach Modus setzen
+            switch (mode) {
+                case FALL_DOWN -> {
+                    // Start von oben (Y = 5 über Ziel)
+                    this.startPosition.set(this.position.x, this.position.y + 5.0f, this.position.z);
+                    this.startScale.set(this.scale);
+                    this.position.set(this.startPosition);
+                }
+                case RISE_UP -> {
+                    // Start von unten (Y = 5 unter Ziel)
+                    this.startPosition.set(this.position.x, this.position.y - 5.0f, this.position.z);
+                    this.startScale.set(this.scale);
+                    this.position.set(this.startPosition);
+                }
+                case GROW -> {
+                    // Start mit Größe 0
+                    this.startPosition.set(this.position);
+                    this.startScale.set(0.01f, 0.01f, 0.01f);
+                    this.scale.set(this.startScale);
+                }
+                default -> isAnimating = false;
+            }
+        }
+
+        /**
+         * Aktualisiert die Animation basierend auf der verstrichenen Zeit.
+         * Gibt true zurück, wenn die Animation noch läuft.
+         */
+        public boolean updateAnimation() {
+            if (!isAnimating) return false;
+
+            long currentTime = System.currentTimeMillis();
+            float elapsed = (currentTime - animationStartTime) / 1000.0f; // in Sekunden
+            float progress = Math.min(1.0f, elapsed / animationDuration);
+
+            // Interpolation für Abbremsen
+            float eased = 1.0f - (1.0f - progress) * (1.0f - progress);
+
+            switch (animationMode) {
+                case FALL_DOWN, RISE_UP -> {
+                    position.x = lerp(startPosition.x, targetPosition.x, eased);
+                    position.y = lerp(startPosition.y, targetPosition.y, eased);
+                    position.z = lerp(startPosition.z, targetPosition.z, eased);
+                }
+                case GROW -> {
+                    scale.x = lerp(startScale.x, targetScale.x, eased);
+                    scale.y = lerp(startScale.y, targetScale.y, eased);
+                    scale.z = lerp(startScale.z, targetScale.z, eased);
+                }
+                default -> {}
+            }
+
+            if (progress >= 1.0f) {
+                // Animation abgeschlossen - Zielwerte setzen
+                position.set(targetPosition);
+                scale.set(targetScale);
+                isAnimating = false;
+                return false;
+            }
+
+            return true;
+        }
+
+        private float lerp(float start, float end, float t) {
+            return start + t * (end - start);
         }
 
         private void calculateBounds() {

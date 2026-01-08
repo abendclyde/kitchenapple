@@ -129,17 +129,32 @@ public class RenderEngine implements GLEventListener {
         gl.glUniform1i(locIsSelected, 0);
         grid.renderLines(gl, programId, locModel, locColor);
 
-        // Objekte rendern
+        // Objekte rendern (mit Animationsupdate)
         synchronized (objects) {
             for (SceneData.Object3D obj : objects) {
+                // Animation aktualisieren
+                obj.updateAnimation();
+
                 gl.glUniform1i(locIsSelected, (obj == selectedObject) ? 1 : 0);
                 obj.render(gl, programId, locModel, locColor);
             }
         }
     }
 
-    @Override public void reshape(GLAutoDrawable d, int x, int y, int w, int h) {}
-    @Override public void dispose(GLAutoDrawable d) {}
+    @Override
+    public void reshape(GLAutoDrawable drawable, int x, int y, int w, int h) {
+        GL2 gl = drawable.getGL().getGL2();
+        gl.glViewport(0, 0, w, h);
+    }
+
+    @Override
+    public void dispose(GLAutoDrawable drawable) {
+        GL2 gl = drawable.getGL().getGL2();
+        if (programId != 0) {
+            gl.glDeleteProgram(programId);
+            programId = 0;
+        }
+    }
 
     private int compileShader(GL2 gl, int type, String src) {
         int shader = gl.glCreateShader(type);
