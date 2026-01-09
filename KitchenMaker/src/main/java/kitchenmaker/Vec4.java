@@ -3,6 +3,9 @@ package kitchenmaker;
 /**
  * 4D-Vektor-Klasse für homogene Koordinaten in der 3D-Grafik.
  * Die w-Komponente wird für perspektivische Transformationen verwendet.
+ *
+ *
+ * @author Niklas Puls
  */
 public class Vec4 {
     public float x;
@@ -22,6 +25,10 @@ public class Vec4 {
 
     /**
      * Erstellt einen Vektor mit den angegebenen Komponenten.
+     * @param x X-Komponente
+     * @param y Y-Komponente
+     * @param z Z-Komponente
+     * @param w W-Komponente (homogen)
      */
     public Vec4(float x, float y, float z, float w) {
         this.x = x;
@@ -32,6 +39,7 @@ public class Vec4 {
 
     /**
      * Erstellt eine Kopie des angegebenen Vektors.
+     * Nützlich, wenn man einen Zustand sichern oder unveränderliche Operationen simulieren möchte.
      */
     public Vec4(Vec4 other) {
         this.x = other.x;
@@ -54,6 +62,8 @@ public class Vec4 {
 
     /**
      * Multipliziert diesen Vektor mit einer Matrix (Vektor * Matrix Multiplikation).
+     * Erwartet, dass die Matrix im Column-Major-Format vorliegt (OpenGL-Konvention).
+     * Die Operation überschreibt diesen Vektor mit dem Ergebnis.
      * @param transformMatrix die Matrix für die Transformation
      * @return dieser Vektor für Methoden-Verkettung
      */
@@ -73,6 +83,7 @@ public class Vec4 {
     /**
      * Führt die perspektivische Division durch (teilt x, y, z durch w).
      * Dies konvertiert homogene Koordinaten zurück in kartesische Koordinaten.
+     * Schützt vor Division durch Null mit einer kleinen Toleranz.
      * @return dieser Vektor für Methoden-Verkettung
      */
     public Vec4 divideByW() {
@@ -81,7 +92,7 @@ public class Vec4 {
             this.x *= inverseW;
             this.y *= inverseW;
             this.z *= inverseW;
-            this.w = 1.0f;
+            this.w = 1.0f; // normative Darstellung nach Division
         }
         return this;
     }
@@ -91,4 +102,3 @@ public class Vec4 {
         return String.format("Vec4(%.2f, %.2f, %.2f, %.2f)", x, y, z, w);
     }
 }
-

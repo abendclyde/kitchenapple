@@ -6,6 +6,9 @@ import java.awt.Font;
 
 /**
  * Zentrale Theme-Klasse für alle UI-Farben, Schriftarten und Dimensionen.
+ *
+ *
+ * @author Niklas Puls
  */
 public final class Theme {
 
@@ -46,6 +49,8 @@ public final class Theme {
     public static final Dimension LABEL_FIELD = new Dimension(80, 20);
     public static final Dimension VALUE_LABEL = new Dimension(40, 20);
 
+    /**
+     * Privater Konstruktor um die Klasse uninstanziierbar zu machen.
+     */
     private Theme() {}
 }
-

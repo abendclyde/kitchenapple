@@ -4,7 +4,10 @@ import com.jogamp.opengl.*;
 import java.util.List;
 
 /**
- * OpenGL Render-Engine für die 3D-Szene.
+ * Verantwortlich für das Setzen der Kamera-, Projektions-
+ * und Modellmatrizen sowie das Rendern von Gitter und Objekten.
+ *
+ * @author Niklas Puls
  */
 public class RenderEngine implements GLEventListener {
 
@@ -75,6 +78,9 @@ public class RenderEngine implements GLEventListener {
         this.grid = SceneData.createGrid(20, 1.0f);
     }
 
+    /**
+     * Berechnet die Kameraposition basierend auf spherical coordinates (Yaw/Pitch/Distance).
+     */
     private Vec3 calculateCameraPosition() {
         float pitchInRadians = (float) Math.toRadians(cameraPitch);
         float yawInRadians = (float) Math.toRadians(cameraYaw);

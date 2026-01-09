@@ -3,6 +3,8 @@ package kitchenmaker;
 /**
  * 3D-Vektor-Klasse für Position, Rotation und Richtung.
  * Verwendet mutable Felder für Performance bei 3D-Rendering.
+ *
+ * @author Niklas Puls
  */
 public class Vec3 {
     public float x;
@@ -151,6 +153,7 @@ public class Vec3 {
 
     /**
      * Normalisiert diesen Vektor (macht ihn zur Länge 1).
+     * Schützt gegen sehr kleine Längen, um numerische Instabilitäten zu vermeiden.
      * @return dieser Vektor für Methoden-Verkettung
      */
     public Vec3 normalize() {
@@ -200,4 +203,3 @@ public class Vec3 {
         return String.format("Vec3(%.2f, %.2f, %.2f)", x, y, z);
     }
 }
-

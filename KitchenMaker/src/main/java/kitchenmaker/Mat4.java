@@ -3,6 +3,8 @@ package kitchenmaker;
 /**
  * 4x4-Matrix-Klasse für 3D-Transformationen.
  * Die Matrix wird im Column-Major-Format gespeichert (OpenGL-Konvention).
+ *
+ * @author Niklas Puls
  */
 public class Mat4 {
     /**
@@ -53,10 +55,12 @@ public class Mat4 {
 
     /**
      * Wendet eine Translation (Verschiebung) auf diese Matrix an.
+     * Fügt die Verschiebung zur aktuellen Transformationsspalte hinzu.
      * @return diese Matrix für Methoden-Verkettung
      */
     public Mat4 translate(float deltaX, float deltaY, float deltaZ) {
         float[] m = matrixElements;
+        // Translation zur bestehenden Matrix hinzufügen (Column-major)
         m[12] += m[0] * deltaX + m[4] * deltaY + m[8] * deltaZ;
         m[13] += m[1] * deltaX + m[5] * deltaY + m[9] * deltaZ;
         m[14] += m[2] * deltaX + m[6] * deltaY + m[10] * deltaZ;
@@ -181,6 +185,11 @@ public class Mat4 {
      * @param nearPlane nahe Clipping-Ebene
      * @param farPlane ferne Clipping-Ebene
      * @return diese Matrix für Methoden-Verkettung
+     *
+     * Diese Methode setzt die Matrix auf eine Perspektiv-Projektionsmatrix,
+     * die für die 3D-Darstellung in einem bestimmten Sichtfeld und Verhältnis
+     * von Breite zu Höhe verwendet wird. Die nahe und ferne Clipping-Ebene
+     * bestimmen, welche Objekte im Sichtfeld der Kamera angezeigt werden.
      */
     public Mat4 setPerspective(float fieldOfViewInRadians, float aspectRatio, float nearPlane, float farPlane) {
         float tanHalfFov = (float) Math.tan(fieldOfViewInRadians / 2.0f);
@@ -204,7 +213,12 @@ public class Mat4 {
      * @param cameraPosition Position der Kamera
      * @param targetPosition Punkt, auf den die Kamera schaut
      * @param upDirection Aufwärtsrichtung der Kamera (normalerweise (0, 1, 0))
-     * @return diese Matrix für Methoden-Verkettung
+     * @return diese Matrix fr Methoden-Verkettung
+     *
+     * Diese Methode setzt die Matrix auf eine View-Matrix, die die Position und
+     * Ausrichtung der Kamera im 3D-Raum definiert. Der Up-Vektor bestimmt die
+     * Aufwärtsrichtung der Kamera, während die Zielposition angibt, auf welchen
+     * Punkt die Kamera gerichtet ist.
      */
     public Mat4 setLookAt(Vec3 cameraPosition, Vec3 targetPosition, Vec3 upDirection) {
         // Berechne Richtungsvektoren
@@ -263,6 +277,10 @@ public class Mat4 {
     /**
      * Invertiert diese Matrix (berechnet die inverse Matrix).
      * @return diese Matrix für Methoden-Verkettung
+     *
+     * Diese Methode berechnet die Inverse der Matrix mittels Gauss-Jordan-Elimination.
+     * Die inverse Matrix wird benötigt, um Transformationen rückgängig zu machen
+     * oder um von homogenen Koordinaten zurück zu normalen Koordinaten zu konvertieren.
      */
     public Mat4 invertMatrix() {
         float[] m = matrixElements;

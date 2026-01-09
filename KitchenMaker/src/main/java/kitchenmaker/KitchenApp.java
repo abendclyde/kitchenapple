@@ -19,6 +19,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+/**
+ * Hauptanwendung für den KitchenMaker-Editor.
+ *
+ * Startet die Swing-Oberfläche, initialisiert OpenGL-Rendering
+ * und die Webcam-/Formerkennung. Beinhaltet UI-Interaktion und Objektverwaltung.
+ *
+ * @author Niklas Puls
+ */
 public class KitchenApp extends JFrame {
 
     private static final int DRAG_THRESHOLD = 5;
@@ -47,6 +55,9 @@ public class KitchenApp extends JFrame {
     private SceneData.AppearanceMode currentAppearanceMode = SceneData.AppearanceMode.FALL_DOWN;
     private float animationDurationSeconds = 0.8f;
 
+    /**
+     * Anwendungseintrittspunkt. Lädt OpenCV falls verfügbar und startet die UI im EDT.
+     */
     public static void main(String[] args) {
         FlatDarkLaf.setup();
         UIManager.put("Button.arc", 8);
@@ -67,6 +78,9 @@ public class KitchenApp extends JFrame {
         }
     }
 
+    /**
+     * Konstruktor: initialisiert UI, Renderer und Event-Handler.
+     */
     public KitchenApp() {
         super("KitchenMaker von Niklas Puls");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
@@ -120,12 +134,17 @@ public class KitchenApp extends JFrame {
         new FPSAnimator(gljPanel, 60).start();
     }
 
+    /**
+     * Erstellt die obere Werkzeugleiste mit Import/Add/Edit/Delete/Webcam-Steuerung
+     * sowie Animationseinstellungen.
+     */
     private JToolBar createToolBar() {
         JToolBar toolbar = new JToolBar();
         toolbar.setFloatable(false);
         toolbar.setBorder(new EmptyBorder(6, 10, 6, 10));
         toolbar.setBackground(Theme.PANEL);
 
+        // Buttons
         JButton importButton = createToolbarButton("icons/import.svg", "OBJ Importieren (Ctrl+O)");
         importButton.addActionListener(e -> importObjFile());
 
@@ -153,6 +172,7 @@ public class KitchenApp extends JFrame {
 
         toolbar.addSeparator(new Dimension(20, 0));
 
+        // Animations-Kontrolle
         JLabel animLabel = new JLabel("Animation:");
         animLabel.setForeground(Theme.TEXT_LABEL);
         toolbar.add(animLabel);
@@ -412,10 +432,10 @@ public class KitchenApp extends JFrame {
 
     private void deleteSelectedObject() {
         if (renderer.selectedObject != null) {
-            int idx = objects.indexOf(renderer.selectedObject);
+            int id = objects.indexOf(renderer.selectedObject);
             objects.remove(renderer.selectedObject);
             listModel.removeElement(renderer.selectedObject);
-            renderer.selectedObject = objects.isEmpty() ? null : objects.get(Math.max(0, idx - 1));
+            renderer.selectedObject = objects.isEmpty() ? null : objects.get(Math.max(0, id - 1));
             if (renderer.selectedObject != null) {
                 objectList.setSelectedValue(renderer.selectedObject, true);
             }
@@ -473,6 +493,7 @@ public class KitchenApp extends JFrame {
 
             @Override
             public void mouseReleased(MouseEvent e) {
+                isDragging = false;
                 isDraggingObject = false;
             }
         });
@@ -515,13 +536,16 @@ public class KitchenApp extends JFrame {
     private record Ray(Vec3 rayOriginPoint, Vec3 rayDirectionVector) {}
 
     private Ray createRayFromMouse(int mouseX, int mouseY) {
-        int w = gljPanel.getWidth();
-        int h = gljPanel.getHeight();
+        // Robuste Abfrage der Panel-Größe (vermeidet Division durch Null)
+        int w = Math.max(1, gljPanel.getWidth());
+        int h = Math.max(1, gljPanel.getHeight());
         float aspect = (float) w / h;
 
+        // Normalisierte Gerätekoordinaten (NDC) im Bereich [-1,1]
         float normalizedDeviceX = (2.0f * mouseX) / w - 1.0f;
         float normalizedDeviceY = 1.0f - (2.0f * mouseY) / h;
 
+        // Kamera-Position (berechnet aus spherical coordinates - yaw/pitch/distance)
         float pitchInRadians = (float) Math.toRadians(renderer.cameraPitch);
         float yawInRadians = (float) Math.toRadians(renderer.cameraYaw);
         float cameraX = renderer.cameraDistance * (float)(Math.cos(pitchInRadians) * Math.sin(yawInRadians));
@@ -529,36 +553,43 @@ public class KitchenApp extends JFrame {
         float cameraZ = renderer.cameraDistance * (float)(Math.cos(pitchInRadians) * Math.cos(yawInRadians));
         Vec3 cameraPosition = new Vec3(cameraX, cameraY, cameraZ).add(renderer.cameraTarget);
 
+        // Erstelle Projektions- und View-Matrizen wie im Renderer
         Mat4 projectionMatrix = new Mat4().setPerspective((float) Math.toRadians(renderer.fov), aspect, 0.1f, 100f);
         Mat4 viewMatrix = new Mat4().setLookAt(cameraPosition, renderer.cameraTarget, new Vec3(0, 1, 0));
+
+        // Inverse der View-Projection-Matrix: wir wollen von NDC zurück in Weltkoordinaten
+        // Achtung: Mat4.invertMatrix setzt bei nicht-invertierbarer Matrix die Identität;
+        // das ist eine Fallback-Strategie, die hier beibehalten wird.
         Mat4 inverseViewProjectionMatrix = new Mat4(projectionMatrix).multiplyMatrix(viewMatrix).invertMatrix();
 
-        Vec4 rayNearPoint = new Vec4(normalizedDeviceX, normalizedDeviceY, -1, 1).multiply(inverseViewProjectionMatrix);
+        // Erzeuge Punkte in Clip-Space für nahe und ferne Ebene und transformiere sie in Weltkoordinaten
+        Vec4 rayNearPoint = new Vec4(normalizedDeviceX, normalizedDeviceY, -1f, 1f).multiply(inverseViewProjectionMatrix);
         rayNearPoint.divideByW();
-        Vec4 rayFarPoint = new Vec4(normalizedDeviceX, normalizedDeviceY, 1, 1).multiply(inverseViewProjectionMatrix);
+        Vec4 rayFarPoint = new Vec4(normalizedDeviceX, normalizedDeviceY, 1f, 1f).multiply(inverseViewProjectionMatrix);
         rayFarPoint.divideByW();
 
+        // Origin ist der Punkt bei z=-1 (in Weltkoordinaten). Die Richtung ist (far - near).
         Vec3 rayOriginPoint = new Vec3(rayNearPoint.x, rayNearPoint.y, rayNearPoint.z);
         Vec3 rayDirectionVector = new Vec3(rayFarPoint.x - rayNearPoint.x, rayFarPoint.y - rayNearPoint.y, rayFarPoint.z - rayNearPoint.z).normalize();
 
         return new Ray(rayOriginPoint, rayDirectionVector);
     }
 
-    private Vec3 screenToGroundPlane(int mouseX, int mouseY, float planeY) {
-        Ray ray = createRayFromMouse(mouseX, mouseY);
-        float t = (planeY - ray.rayOriginPoint.y) / ray.rayDirectionVector.y;
-        return new Vec3(ray.rayOriginPoint).add(new Vec3(ray.rayDirectionVector).multiply(t));
-    }
-
     private SceneData.Object3D pickObject(int mouseX, int mouseY) {
+        // Erzeuge einen Ray aus der Mausposition
         Ray ray = createRayFromMouse(mouseX, mouseY);
+        if (ray == null) return null; // defensive, falls künftig createRayFromMouse null zurückgeben sollte
 
         SceneData.Object3D closest = null;
         float closestDist = Float.MAX_VALUE;
 
+        // Synchronisiere Zugriff auf die Objektliste (gleiche Semantik wie zuvor)
         synchronized (objects) {
             for (SceneData.Object3D obj : objects) {
+                // intersectAABB liefert den Parameter t des Schnittpunkts (Eintrittspunkt)
                 float t = intersectAABB(ray.rayOriginPoint, ray.rayDirectionVector, obj);
+
+                // Wir interessieren uns für Treffers mit positivem t (vor dem Ray-Start) und suchen den nächsten
                 if (t > 0 && t < closestDist) {
                     closestDist = t;
                     closest = obj;
@@ -569,10 +600,27 @@ public class KitchenApp extends JFrame {
         return closest;
     }
 
+    /*
+     * Grundidee des AABB-Ray-Tests (Slab method):
+     * Für jede Achse (X, Y, Z) berechnen wir das Intervall [tMin, tMax], in dem
+     * der Ray die Ebene zwischen den min/max Koordinaten der AABB schneidet.
+     *
+     * Ray-Punkt: P(t) = origin + t * direction
+     * Schnitt mit Ebene x = a => t = (a - origin.x) / direction.x
+     *
+     * Für jede Achse erhalten wir zwei t-Werte; wir sorgen durch Tausch dafür,
+     * dass tMin <= tMax gilt (falls die Richtung negativ ist, vertauschen sich die Werte).
+     * Die Gesamtschnittmenge ist der Schnitt der Achsen-Intervalle. Falls die
+     * Intervalle keine gemeinsame Überlappung haben, existiert kein Schnittpunkt.
+     */
+
     private float intersectAABB(Vec3 rayOriginPoint, Vec3 rayDirectionVector, SceneData.Object3D obj) {
+        // Transformiere die lokale Axis-Aligned Bounding Box (AABB) in Weltkoordinaten.
+        // Lokale Bounds werden zuerst skaliert und dann um die Weltposition verschoben.
         Vec3 aabbMinWorld = new Vec3(obj.boundingBoxMin).multiply(obj.scaleFactors).add(obj.worldPosition);
         Vec3 aabbMaxWorld = new Vec3(obj.boundingBoxMax).multiply(obj.scaleFactors).add(obj.worldPosition);
 
+        // Optionaler Puffer, um kleine Lücken/Toleranzen im Modell auszugleichen.
         float padding = 0.2f;
         aabbMinWorld.subtract(padding, padding, padding);
         aabbMaxWorld.add(padding, padding, padding);
@@ -585,18 +633,40 @@ public class KitchenApp extends JFrame {
         float tMaxY = (aabbMaxWorld.y - rayOriginPoint.y) / rayDirectionVector.y;
         if (tMinY > tMaxY) { float tmp = tMinY; tMinY = tMaxY; tMaxY = tmp; }
 
+        // Schnellabbruch: Wenn X- und Y-Intervalle sich nicht überlappen, gibt es keinen Schnitt.
         if (tMinX > tMaxY || tMinY > tMaxX) return -1;
-        if (tMinY > tMinX) tMinX = tMinY;
-        if (tMaxY < tMaxX) tMaxX = tMaxY;
 
+        /*
+         * Kombiniere die X- und Y-Intervalle zu einem temporären Intervall.
+         * Das kombinierte Minimum T tMinX ist das größere der beiden Startwerte (weil beide erfüllt sein müssen),
+         * das kombinierte Maximum T tMaxX ist das kleinere der beiden Endwerte (beide dürfen nicht überschritten werden).
+         *
+         * Wir verwenden Math.max/Math.min hier, weil es die Absicht klar ausdrückt und
+         * für statische Analysen besser lesbar ist als direkte Zuweisungen.
+         */
+        tMinX = Math.max(tMinX, tMinY); // kombiniertes Intervall-Start
+        tMaxX = Math.min(tMaxX, tMaxY); // kombiniertes Intervall-Ende
+
+        // Z-Achse: gleiche Berechnung wie zuvor
         float tMinZ = (aabbMinWorld.z - rayOriginPoint.z) / rayDirectionVector.z;
         float tMaxZ = (aabbMaxWorld.z - rayOriginPoint.z) / rayDirectionVector.z;
         if (tMinZ > tMaxZ) { float tmp = tMinZ; tMinZ = tMaxZ; tMaxZ = tmp; }
 
+        // Überprüfe, ob das kombinierte XY-Intervall mit dem Z-Intervall überlappt.
         if (tMinX > tMaxZ || tMinZ > tMaxX) return -1;
-        if (tMinZ > tMinX) tMinX = tMinZ;
 
+        // Endgültiges kombiniertes Start-t ist das Maximum der bisherigen Starts (einschließlich Z)
+        tMinX = Math.max(tMinX, tMinZ);
+
+        // Ergebnis: tMinX ist der Eintrittsparameter; negativ bedeutet, der Eintrittspunkt liegt
+        // hinter dem Ray-Start (falls benötigt, kann der Aufrufer dies filtern).
         return tMinX;
+    }
+
+    private Vec3 screenToGroundPlane(int mouseX, int mouseY, float planeY) {
+        Ray ray = createRayFromMouse(mouseX, mouseY);
+        float t = (planeY - ray.rayOriginPoint.y) / ray.rayDirectionVector.y;
+        return new Vec3(ray.rayOriginPoint).add(new Vec3(ray.rayDirectionVector).multiply(t));
     }
 
     private void moveObjectOnGround(SceneData.Object3D obj, int mouseX, int mouseY) {

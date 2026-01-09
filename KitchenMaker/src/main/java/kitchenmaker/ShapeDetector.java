@@ -8,6 +8,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Sucht in einem Videoframe nach farbigen Formen (Dreieck,
+ * Kreis, Viereck) und mappt erkannte Formen auf vordefinierte 3D-Objekte.
+ *
+ * @author Niklas Puls
+ */
 public class ShapeDetector {
 
     public static class DetectedShape {
@@ -57,10 +63,16 @@ public class ShapeDetector {
             "BLUE_CIRCLE", "Counter Outer Corner"
         );
 
+        /**
+         * Liefert den Namen des zugeordneten 3D-Objekts oder null, falls keine Zuordnung existiert.
+         */
         public String get3DObjectName() {
             return SHAPE_TO_OBJECT.get(colorType.name() + "_" + shapeType.name());
         }
 
+        /**
+         * Farbe für die Visualisierung im Frame (BGR für OpenCV).
+         */
         public Scalar getDrawColor() {
             return switch (colorType) {
                 case RED -> new Scalar(0, 0, 255);
@@ -81,6 +93,9 @@ public class ShapeDetector {
     private static final double MIN_AREA_RATIO = 0.02;
     private static final double MIN_SOLIDITY = 0.8;
 
+    /**
+     * Findet farbige Formen in einem BGR-Frame und gibt eine Liste gefundener Formen zurück.
+     */
     public List<DetectedShape> detectShapes(Mat frame) {
         List<DetectedShape> detectedShapes = new ArrayList<>();
         double minAreaForFrame = Math.max(MIN_CONTOUR_AREA, frame.rows() * frame.cols() * MIN_AREA_RATIO);
@@ -97,12 +112,18 @@ public class ShapeDetector {
         return detectedShapes;
     }
 
+    /**
+     * Ermittelt Konturen für eine bestimmte Farbe, filtert und klassifiziert sie.
+     * Wichtige Schritte: Farbmaske, Morphologie, Kontur-Finden, Konvexhülle/Solidity-Check,
+     * Approximation der Polygonanzahl und Klassifikation.
+     */
     private void detectColoredShapes(Mat hsv, Mat frame, DetectedShape.ColorType colorType,
                                       List<DetectedShape> detectedShapes, double minAreaForFrame) {
         Mat mask = new Mat();
 
         switch (colorType) {
             case RED -> {
+                // Rot liegt in HSV über den 0/180-Grenzwert verteilt -> zwei Bereiche kombinieren
                 Mat mask1 = new Mat(), mask2 = new Mat();
                 Core.inRange(hsv, RED_LOW1, RED_HIGH1, mask1);
                 Core.inRange(hsv, RED_LOW2, RED_HIGH2, mask2);
@@ -114,6 +135,7 @@ public class ShapeDetector {
             default -> { mask.release(); return; }
         }
 
+        // Rauschen entfernen und Flächen schließen
         Mat kernel = Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, new Size(7, 7));
         Imgproc.morphologyEx(mask, mask, Imgproc.MORPH_OPEN, kernel);
         Imgproc.morphologyEx(mask, mask, Imgproc.MORPH_CLOSE, kernel);
@@ -124,6 +146,7 @@ public class ShapeDetector {
         Imgproc.findContours(mask, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
         hierarchy.release();
 
+        // Sortiere nach Fläche (absteigend)
         contours.sort((c1, c2) -> Double.compare(Imgproc.contourArea(c2), Imgproc.contourArea(c1)));
 
         for (MatOfPoint contour : contours) {
@@ -142,6 +165,7 @@ public class ShapeDetector {
             double solidity = Imgproc.contourArea(hull) > 0 ? area / Imgproc.contourArea(hull) : 0;
             hull.release(); hullIndices.release();
 
+            // Filtere dünne oder sehr unregelmäßige Formen
             if (solidity < MIN_SOLIDITY) continue;
 
             MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());

@@ -5,6 +5,12 @@ import java.io.*;
 import java.nio.*;
 import java.util.*;
 
+/**
+ * `Object3D`-Struktur, Laderoutinen für OBJ-Dateien
+ * und Hilfsfunktionen wie das Erzeugen eines Gitters.
+ *
+ * @author Niklas Puls
+ */
 public class SceneData {
 
     // Enum für Erscheinungsmodi
@@ -50,6 +56,9 @@ public class SceneData {
         public Vec3 boundingBoxMin = new Vec3();
         public Vec3 boundingBoxMax = new Vec3();
 
+        /**
+         * Konstruktor: übernimmt Vertex- und Indexdaten und berechnet die Bounding-Box.
+         */
         public Object3D(String name, float[] vertices, int[] indices) {
             this.name = name;
             this.vertices = vertices;
