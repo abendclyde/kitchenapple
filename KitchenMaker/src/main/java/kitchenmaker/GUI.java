@@ -9,10 +9,11 @@ import java.awt.event.*;
 import java.util.List;
 
 /**
- * GUI-Komponenten für den KitchenMaker-Editor.
- *
- * Erstellt und verwaltet die Swing-Oberfläche, inklusive Toolbar,
- * Seitenpanel, Objektliste und Edit-Dialoge.
+ * Die grafische Benutzeroberfläche des KitchenMaker-Editors.
+ * Diese Klasse erweitert JFrame und stellt die visuelle Schnittstelle der Anwendung bereit.
+ * Sie kümmert sich um die Anordnung der Swing-Komponenten (Toolbar, Seitenleiste, OpenGL-Canvas)
+ * und implementiert die Interaktionslogik für Benutzereingaben, die nicht direkt das 3D-Rendering betreffen,
+ * wie das Hinzufügen von Objekten, das Bearbeiten von Eigenschaften über Dialoge und die Webcam-Steuerung.
  *
  * @author Niklas Puls
  */
@@ -26,19 +27,14 @@ public class GUI extends JFrame {
     private final com.jogamp.opengl.awt.GLJPanel gljPanel;
     private final JLabel webcamLabel;
 
+    /**
+     * Standard-Animationsmodus für neu hinzugefügte Objekte.
+     */
     private SceneData.AppearanceMode currentAppearanceMode = SceneData.AppearanceMode.FALL_DOWN;
     private float animationDurationSeconds = 0.8f;
 
     /**
-     * Konstruktor: erstellt die GUI-Komponenten.
-     *
-     * @param app Die Hauptanwendung
-     * @param objects Die Liste der 3D-Objekte
-     * @param renderer Der OpenGL-Renderer
-     * @param gljPanel Das OpenGL-Panel
-     * @param listModel Das Listenmodell für Objekte
-     * @param objectList Die JList für Objekte
-     * @param webcamLabel Das Label für die Webcam-Anzeige
+     * Initialisiert das Hauptfenster und die GUI-Komponenten.
      */
     public GUI(KitchenApp app, List<SceneData.Object3D> objects, RenderEngine renderer,
                com.jogamp.opengl.awt.GLJPanel gljPanel, DefaultListModel<SceneData.Object3D> listModel,
@@ -57,16 +53,20 @@ public class GUI extends JFrame {
         setLayout(new BorderLayout(0, 0));
         getContentPane().setBackground(Theme.BACKGROUND);
 
-        // Konfiguriere die Objektliste
+        // Konfiguration des Custom-Renderers und der Selektionslogik für die Objektliste
         objectList.setCellRenderer(new ObjectListCellRenderer());
         objectList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         objectList.setBackground(Theme.LIST_BACKGROUND);
         objectList.setForeground(Theme.TEXT_PRIMARY);
+
+        // Synchronisation der Listenauswahl mit dem Renderer
         objectList.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 renderer.selectedObject = objectList.getSelectedValue();
             }
         });
+
+        // Doppelklick-Handler zum Öffnen des Bearbeitungsdialogs
         objectList.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -76,25 +76,25 @@ public class GUI extends JFrame {
             }
         });
 
-        // Baue die GUI auf
+        // Aufbau der Hauptstruktur: Toolbar oben, Viewport mittig, Sidebar links
         add(createToolBar(), BorderLayout.NORTH);
         add(gljPanel, BorderLayout.CENTER);
         add(createSidePanel(), BorderLayout.WEST);
 
-        setLocationRelativeTo(null);
+        setLocationRelativeTo(null); // Zentriert das Fenster auf dem Bildschirm
     }
 
     /**
-     * Erstellt die obere Werkzeugleiste mit Import/Add/Edit/Delete/Webcam-Steuerung
-     * sowie Animationseinstellungen.
+     * Konstruiert die Toolbar am oberen Rand.
+     * Beinhaltet Buttons für Importieren und Hinzufügen von Objekten, Webcam-Steuerung so wie Anpassung der Objekt-Erscheinungsanimation
      */
     private JToolBar createToolBar() {
         JToolBar toolbar = new JToolBar();
-        toolbar.setFloatable(false);
+        toolbar.setFloatable(false); // Fixierte Toolbar
         toolbar.setBorder(new EmptyBorder(6, 10, 6, 10));
         toolbar.setBackground(Theme.PANEL);
 
-        // Buttons
+        // Erzeugung der Aktions-Buttons
         JButton importButton = createToolbarButton("icons/import.svg", "OBJ Importieren (Ctrl+O)");
         importButton.addActionListener(e -> app.importObjFile());
 
@@ -122,7 +122,7 @@ public class GUI extends JFrame {
 
         toolbar.addSeparator(new Dimension(20, 0));
 
-        // Animations-Kontrolle
+        // UI-Elemente zur Steuerung der Animationsart
         JLabel animLabel = new JLabel("Animation:");
         animLabel.setForeground(Theme.TEXT_LABEL);
         toolbar.add(animLabel);
@@ -136,17 +136,20 @@ public class GUI extends JFrame {
 
         toolbar.add(Box.createHorizontalStrut(15));
 
+        // Slider zur Steuerung der Animationsdauer
         JLabel durationLabel = new JLabel("Dauer:");
         durationLabel.setForeground(Theme.TEXT_LABEL);
         toolbar.add(durationLabel);
         toolbar.add(Box.createHorizontalStrut(5));
 
-        JSlider durationSlider = new JSlider(0, 30, (int)(animationDurationSeconds * 10));
+        JSlider durationSlider = new JSlider(0, 30, (int) (animationDurationSeconds * 10));
         durationSlider.setMaximumSize(new Dimension(100, 30));
         durationSlider.setToolTipText("Animationsdauer in Sekunden");
+
         JLabel durationValueLabel = new JLabel(String.format("%.1fs", animationDurationSeconds));
         durationValueLabel.setForeground(Theme.TEXT_LABEL);
         durationValueLabel.setPreferredSize(new Dimension(35, 20));
+
         durationSlider.addChangeListener(e -> {
             animationDurationSeconds = durationSlider.getValue() / 10.0f;
             durationValueLabel.setText(String.format("%.1fs", animationDurationSeconds));
@@ -155,8 +158,8 @@ public class GUI extends JFrame {
         toolbar.add(Box.createHorizontalStrut(5));
         toolbar.add(durationValueLabel);
 
-        toolbar.add(Box.createHorizontalGlue());
-
+        // Titel
+        toolbar.add(Box.createHorizontalGlue()); // Rechtsbündiger Titel
         JLabel titleLabel = new JLabel("KitchenMaker");
         titleLabel.setFont(Theme.TITLE);
         titleLabel.setForeground(Theme.TEXT_MUTED);
@@ -166,30 +169,32 @@ public class GUI extends JFrame {
     }
 
     /**
-     * Zeigt das Popup-Menü zum Hinzufügen von Objekten.
+     * Erzeugt und zeigt ein Popup-Menü zur Auswahl vordefinierter Objekte an.
+     * Wird aufgerufen, wenn der Button zum Hinzufügen betätigt wird.
      */
     private void showAddObjectMenu(JButton source) {
         JPopupMenu menu = new JPopupMenu();
 
+        // Definition der verfügbaren Objekte: {Interner Typ, Anzeigename, Icon-Pfad}
         String[][] items = {
-            {"Fridge", "Kühlschrank", "icons/fridge.svg"},
-            {"Microwave", "Mikrowelle", "icons/microwave.svg"},
-            {"Oven", "Backofen", "icons/oven.svg"},
-            {"Counter", "Theke", "icons/counter.svg"},
-            {"Counter Inner Corner", "Theke Innenecke", "icons/counter_corner_inner.svg"},
-            {"Counter Outer Corner", "Theke Außenecke", "icons/counter_corner_outer.svg"},
-            {"Sink", "Waschbecken", "icons/sink.svg"}
+                {"Fridge", "Kühlschrank", "icons/fridge.svg"},
+                {"Microwave", "Mikrowelle", "icons/microwave.svg"},
+                {"Oven", "Backofen", "icons/oven.svg"},
+                {"Counter", "Theke", "icons/counter.svg"},
+                {"Counter Inner Corner", "Theke Innenecke", "icons/counter_corner_inner.svg"},
+                {"Counter Outer Corner", "Theke Außenecke", "icons/counter_corner_outer.svg"},
+                {"Sink", "Waschbecken", "icons/sink.svg"}
         };
 
         for (String[] item : items) {
-            menu.add(createMenuItem(item[1], item[2], () -> app.addObjectByType(item[0])));
+            menu.add(createMenuItem(item[1], item[2], () -> app.addObjectByType(item[0]))); // Wenn geklickt wird, dann Objekt hinzufügen
         }
 
         menu.show(source, 0, source.getHeight());
     }
 
     /**
-     * Erstellt ein Menü-Item mit Icon und Action.
+     * Hilfsmethode zur Erstellung eines Menüeintrags mit Icon.
      */
     private JMenuItem createMenuItem(String text, String iconPath, Runnable action) {
         JMenuItem item = new JMenuItem(text, new FlatSVGIcon(iconPath, 16, 16));
@@ -198,7 +203,7 @@ public class GUI extends JFrame {
     }
 
     /**
-     * Erstellt einen Toolbar-Button mit Icon und Hover-Effekt.
+     * Erstellt einen Toolbar-Button
      */
     private JButton createToolbarButton(String iconPath, String tooltip) {
         JButton button = new JButton(new FlatSVGIcon(iconPath, 20, 20));
@@ -208,11 +213,14 @@ public class GUI extends JFrame {
         button.setContentAreaFilled(false);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setPreferredSize(Theme.TOOLBAR_BUTTON);
+
+        // MouseListener für visuelles Feedback beim Hovern
         button.addMouseListener(new MouseAdapter() {
             public void mouseEntered(MouseEvent e) {
                 button.setContentAreaFilled(true);
                 button.setBackground(Theme.HOVER);
             }
+
             public void mouseExited(MouseEvent e) {
                 button.setContentAreaFilled(false);
             }
@@ -222,7 +230,8 @@ public class GUI extends JFrame {
     }
 
     /**
-     * Erstellt das Seitenpanel mit Objektliste und Webcam-Vorschau.
+     * Erstellt die Sidebar.
+     * Enthält die scrollbare Liste der Szenenobjekte sowie das Webcam-Vorschaufenster.
      */
     private JPanel createSidePanel() {
         JPanel sidePanel = new JPanel(new BorderLayout(0, 10));
@@ -244,6 +253,7 @@ public class GUI extends JFrame {
         listPanel.add(objectsLabel, BorderLayout.NORTH);
         listPanel.add(scrollPane, BorderLayout.CENTER);
 
+        // Webcam-Bereich
         JPanel webcamPanel = new JPanel(new BorderLayout(0, 5));
         webcamPanel.setOpaque(false);
 
@@ -272,7 +282,9 @@ public class GUI extends JFrame {
     }
 
     /**
-     * Zeigt den Bearbeitungsdialog für ein Objekt.
+     * Öffnet einen Dialog zum Bearbeiten der Eigenschaften des ausgewählten Objekts.
+     * Ermöglicht die Änderung von Name, Position, Rotation und Farbe.
+     * Bei Abbruch werden die Änderungen zurückgesetzt.
      */
     public void showEditDialog(SceneData.Object3D obj) {
         JDialog dialog = new JDialog(this, "Bearbeiten: " + obj.name, true);
@@ -280,6 +292,7 @@ public class GUI extends JFrame {
         dialog.setLocationRelativeTo(this);
         dialog.setLayout(new BorderLayout());
 
+        // Sichern des ursprünglichen Zustands für Undo-Funktionalität bei Abbruch
         String originalName = obj.name;
         Vec3 originalPosition = new Vec3(obj.worldPosition);
         float originalRotationY = obj.rotationAngles.y;
@@ -289,38 +302,54 @@ public class GUI extends JFrame {
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBorder(new EmptyBorder(20, 20, 20, 20));
 
+        // Namensfeld
         JPanel namePanel = createLabeledField("Name:");
         JTextField nameField = new JTextField(obj.name);
         nameField.addKeyListener(new KeyAdapter() {
             public void keyReleased(KeyEvent e) {
                 obj.name = nameField.getText();
-                objectList.repaint();
+                objectList.repaint(); // Aktualisiert die Liste sofort
             }
         });
         namePanel.add(nameField);
         content.add(namePanel);
         content.add(Box.createVerticalStrut(15));
 
-        content.add(createSlider("Position X:", -100, 100, (int)(obj.worldPosition.x * 10),
-            v -> { obj.worldPosition.x = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
-        content.add(createSlider("Position Y:", -100, 100, (int)(obj.worldPosition.y * 10),
-            v -> { obj.worldPosition.y = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
-        content.add(createSlider("Position Z:", -100, 100, (int)(obj.worldPosition.z * 10),
-            v -> { obj.worldPosition.z = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
-        content.add(createSlider("Rotation Y:", 0, 360, (int)Math.toDegrees(obj.rotationAngles.y),
-            v -> { obj.rotationAngles.y = (float)Math.toRadians(v); gljPanel.repaint(); }, "%d°", 1f));
+        // Slider für Position und Rotation
+        content.add(createSlider("Position X:", -100, 100, (int) (obj.worldPosition.x * 10),
+                v -> {
+                    obj.worldPosition.x = v / 10f;
+                    gljPanel.repaint();
+                }, "%.1f", 10f));
+        content.add(createSlider("Position Y:", -100, 100, (int) (obj.worldPosition.y * 10),
+                v -> {
+                    obj.worldPosition.y = v / 10f;
+                    gljPanel.repaint();
+                }, "%.1f", 10f));
+        content.add(createSlider("Position Z:", -100, 100, (int) (obj.worldPosition.z * 10),
+                v -> {
+                    obj.worldPosition.z = v / 10f;
+                    gljPanel.repaint();
+                }, "%.1f", 10f));
+        content.add(createSlider("Rotation Y:", 0, 360, (int) Math.toDegrees(obj.rotationAngles.y),
+                v -> {
+                    obj.rotationAngles.y = (float) Math.toRadians(v);
+                    gljPanel.repaint();
+                }, "%d°", 1f));
 
         content.add(Box.createVerticalStrut(10));
 
+        // Farbauswahl
         JPanel colorPanel = createLabeledField("Farbe:");
         JButton colorButton = new JButton("  ");
         colorButton.setBackground(new Color(obj.color.x, obj.color.y, obj.color.z));
         colorButton.setPreferredSize(Theme.COLOR_BUTTON);
         colorButton.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(Theme.ICON_BORDER, 1),
-            BorderFactory.createEmptyBorder(2, 2, 2, 2)));
+                BorderFactory.createLineBorder(Theme.ICON_BORDER, 1),
+                BorderFactory.createEmptyBorder(2, 2, 2, 2)));
         colorButton.setFocusPainted(false);
         colorButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
         colorButton.addActionListener(e -> {
             Color newColor = JColorChooser.showDialog(dialog, "Farbe wählen", colorButton.getBackground());
             if (newColor != null) {
@@ -333,9 +362,11 @@ public class GUI extends JFrame {
         colorPanel.add(colorButton);
         content.add(colorPanel);
 
+        // Dialog-Buttons (OK / Abbrechen)
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton cancelButton = new JButton("Abbrechen");
         cancelButton.addActionListener(e -> {
+            // Wiederherstellung des Ursprungszustands
             obj.name = originalName;
             obj.worldPosition.set(originalPosition);
             obj.rotationAngles.y = originalRotationY;
@@ -355,18 +386,22 @@ public class GUI extends JFrame {
     }
 
     /**
-     * Erstellt einen Slider mit Label und Wertanzeige.
+     * Erstellt ein Panel mit einem JSlider, Label und numerischer Anzeige.
+     * Gleichzeitig auch Hilfsmethode für Edit-Dialog.
      */
     private JPanel createSlider(String label, int min, int max, int value,
-                                 java.util.function.IntConsumer onChange, String format, float divisor) {
+                                java.util.function.IntConsumer onChange, String format, float divisor) {
         JPanel panel = createLabeledField(label);
         JSlider slider = new JSlider(min, max, value);
-        Object initialValue = divisor == 1f ? value : (Object)(value / divisor);
+
+        // Berechnung des Anzeigewertes
+        Object initialValue = divisor == 1f ? value : (Object) (value / divisor);
         JLabel valueLabel = new JLabel(String.format(format, initialValue));
         valueLabel.setPreferredSize(Theme.VALUE_LABEL);
+
         slider.addChangeListener(e -> {
             onChange.accept(slider.getValue());
-            Object displayValue = divisor == 1f ? slider.getValue() : (Object)(slider.getValue() / divisor);
+            Object displayValue = divisor == 1f ? slider.getValue() : (Object) (slider.getValue() / divisor);
             valueLabel.setText(String.format(format, displayValue));
         });
         panel.add(slider);
@@ -374,9 +409,6 @@ public class GUI extends JFrame {
         return panel;
     }
 
-    /**
-     * Erstellt ein Panel mit Label.
-     */
     private JPanel createLabeledField(String label) {
         JPanel panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 2));
         JLabel jLabel = new JLabel(label);
@@ -385,27 +417,18 @@ public class GUI extends JFrame {
         return panel;
     }
 
-    /**
-     * Gibt den aktuellen Animationsmodus zurück.
-     */
     public SceneData.AppearanceMode getCurrentAppearanceMode() {
         return currentAppearanceMode;
     }
 
-    /**
-     * Gibt die aktuelle Animationsdauer zurück.
-     */
     public float getAnimationDurationSeconds() {
         return animationDurationSeconds;
     }
 
-    /**
-     * Renderer für die Objektliste mit Farbicon.
-     */
     private static class ObjectListCellRenderer extends DefaultListCellRenderer {
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index,
-                                                       boolean isSelected, boolean cellHasFocus) {
+                                                      boolean isSelected, boolean cellHasFocus) {
             super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
 
             if (value instanceof SceneData.Object3D obj) {
@@ -428,7 +451,7 @@ public class GUI extends JFrame {
     }
 
     /**
-     * Icon zum Anzeigen der Objektfarbe.
+     * Darstellung eines farbigen Vierecks neben dem Objektnamen in der Liste.
      */
     private static class ColorIcon implements Icon {
         private final Color color;
@@ -443,6 +466,7 @@ public class GUI extends JFrame {
         @Override
         public void paintIcon(Component c, Graphics g, int x, int y) {
             Graphics2D g2 = (Graphics2D) g.create();
+            // Aktivierung von Antialiasing für glatte Kanten
             g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2.setColor(color);
             g2.fillRoundRect(x, y, width, height, 4, 4);
@@ -452,10 +476,13 @@ public class GUI extends JFrame {
         }
 
         @Override
-        public int getIconWidth() { return width; }
+        public int getIconWidth() {
+            return width;
+        }
 
         @Override
-        public int getIconHeight() { return height; }
+        public int getIconHeight() {
+            return height;
+        }
     }
 }
-

@@ -1,28 +1,23 @@
 package kitchenmaker;
 
 /**
- * 3D-Vektor-Klasse für Position, Rotation und Richtung.
- * Verwendet mutable Felder für Performance bei 3D-Rendering.
- * Es kann mehrmals Vec3 genutzt werden wegen Constructor-Overloading.
+ * Mathematische Vektorklasse für 3D-Koordinaten und Richtungen.
  *
  * @author Niklas Puls
  */
 public class Vec3 {
-    public float x;
-    public float y;
-    public float z;
+
+    public float x, y, z;
 
     /**
-     * Erstellt einen Nullvektor (0, 0, 0).
+     * Standardkonstruktor (0,0,0).
      */
     public Vec3() {
-        this.x = 0;
-        this.y = 0;
-        this.z = 0;
+        this(0, 0, 0);
     }
 
     /**
-     * Erstellt einen Vektor mit den angegebenen Komponenten.
+     * Konstruktor mit expliziten Koordinaten.
      */
     public Vec3(float x, float y, float z) {
         this.x = x;
@@ -31,7 +26,7 @@ public class Vec3 {
     }
 
     /**
-     * Erstellt eine Kopie des angegebenen Vektors.
+     * Copy-Konstruktor.
      */
     public Vec3(Vec3 other) {
         this.x = other.x;
@@ -40,8 +35,7 @@ public class Vec3 {
     }
 
     /**
-     * Setzt die Komponenten dieses Vektors.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Setzt die Komponenten dieses Vektors neu.
      */
     public Vec3 set(float x, float y, float z) {
         this.x = x;
@@ -51,19 +45,8 @@ public class Vec3 {
     }
 
     /**
-     * Kopiert die Werte des anderen Vektors in diesen Vektor.
-     * @return dieser Vektor für Methoden-Verkettung
-     */
-    public Vec3 set(Vec3 other) {
-        this.x = other.x;
-        this.y = other.y;
-        this.z = other.z;
-        return this;
-    }
-
-    /**
-     * Setzt alle Komponenten auf den gleichen Wert.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Setzt alle Komponenten auf denselben Wert.
+     * (Wird für Initialisierungen wie Float.MAX_VALUE benötigt).
      */
     public Vec3 set(float value) {
         this.x = value;
@@ -73,8 +56,14 @@ public class Vec3 {
     }
 
     /**
-     * Addiert einen anderen Vektor zu diesem Vektor.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Übernimmt die Werte eines anderen Vektors.
+     */
+    public Vec3 set(Vec3 other) {
+        return set(other.x, other.y, other.z);
+    }
+
+    /**
+     * Addiert einen anderen Vektor zu diesem (this += other).
      */
     public Vec3 add(Vec3 other) {
         this.x += other.x;
@@ -84,19 +73,18 @@ public class Vec3 {
     }
 
     /**
-     * Addiert Werte zu den Komponenten dieses Vektors.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Addiert explizite Werte zu diesem Vektor (this += x, y, z).
+     * (Wird für BoundingBox-Padding benötigt).
      */
-    public Vec3 add(float dx, float dy, float dz) {
-        this.x += dx;
-        this.y += dy;
-        this.z += dz;
+    public Vec3 add(float x, float y, float z) {
+        this.x += x;
+        this.y += y;
+        this.z += z;
         return this;
     }
 
     /**
-     * Subtrahiert einen anderen Vektor von diesem Vektor.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Subtrahiert einen anderen Vektor von diesem (this -= other).
      */
     public Vec3 subtract(Vec3 other) {
         this.x -= other.x;
@@ -106,19 +94,17 @@ public class Vec3 {
     }
 
     /**
-     * Subtrahiert Werte von den Komponenten dieses Vektors.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Subtrahiert explizite Werte (this -= x, y, z).
      */
-    public Vec3 subtract(float dx, float dy, float dz) {
-        this.x -= dx;
-        this.y -= dy;
-        this.z -= dz;
+    public Vec3 subtract(float x, float y, float z) {
+        this.x -= x;
+        this.y -= y;
+        this.z -= z;
         return this;
     }
 
     /**
-     * Multipliziert diesen Vektor mit einem Skalar.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Skaliert den Vektor (Multiplikation mit Skalar).
      */
     public Vec3 multiply(float scalar) {
         this.x *= scalar;
@@ -128,75 +114,48 @@ public class Vec3 {
     }
 
     /**
-     * Multipliziert die Komponenten dieses Vektors komponentenweise mit einem anderen Vektor.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Komponentenweise Multiplikation mit einem anderen Vektor.
      */
-    public Vec3 multiply(Vec3 other) {
-        this.x *= other.x;
-        this.y *= other.y;
-        this.z *= other.z;
+    public Vec3 multiply(Vec3 scale) {
+        this.x *= scale.x;
+        this.y *= scale.y;
+        this.z *= scale.z;
         return this;
     }
 
     /**
-     * Berechnet die Länge (Magnitude) dieses Vektors.
-     */
-    public float length() {
-        return (float) Math.sqrt(x * x + y * y + z * z);
-    }
-
-    /**
-     * Berechnet die quadrierte Länge dieses Vektors (effizienter als length()).
-     */
-    public float lengthSquared() {
-        return x * x + y * y + z * z;
-    }
-
-    /**
-     * Normalisiert diesen Vektor (macht ihn zur Länge 1).
-     * Schützt gegen sehr kleine Längen, um numerische Instabilitäten zu vermeiden.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Normalisiert den Vektor auf die Länge 1.
      */
     public Vec3 normalize() {
-        float vectorLength = length();
-        if (vectorLength > 0.00001f) {
-            float inverseLengt = 1.0f / vectorLength;
-            this.x *= inverseLengt;
-            this.y *= inverseLengt;
-            this.z *= inverseLengt;
+        float length = length();
+        if (length > 0) {
+            multiply(1.0f / length);
         }
         return this;
     }
 
     /**
-     * Berechnet das Skalarprodukt (Dot Product) mit einem anderen Vektor.
+     * Berechnet das Kreuzprodukt.
+     */
+    public Vec3 cross(Vec3 other) {
+        float nx = this.y * other.z - this.z * other.y;
+        float ny = this.z * other.x - this.x * other.z;
+        float nz = this.x * other.y - this.y * other.x;
+        return set(nx, ny, nz);
+    }
+
+    /**
+     * Berechnet das Skalarprodukt (Dot Product).
      */
     public float dot(Vec3 other) {
         return this.x * other.x + this.y * other.y + this.z * other.z;
     }
 
     /**
-     * Berechnet das Kreuzprodukt (Cross Product) mit einem anderen Vektor und speichert das Ergebnis in diesem Vektor.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Berechnet die Länge des Vektors.
      */
-    public Vec3 cross(Vec3 other) {
-        float resultX = this.y * other.z - this.z * other.y;
-        float resultY = this.z * other.x - this.x * other.z;
-        float resultZ = this.x * other.y - this.y * other.x;
-        this.x = resultX;
-        this.y = resultY;
-        this.z = resultZ;
-        return this;
-    }
-
-    /**
-     * Berechnet den Abstand zu einem anderen Vektor.
-     */
-    public float distance(Vec3 other) {
-        float dx = this.x - other.x;
-        float dy = this.y - other.y;
-        float dz = this.z - other.z;
-        return (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
+    public float length() {
+        return (float) Math.sqrt(x * x + y * y + z * z);
     }
 
     @Override

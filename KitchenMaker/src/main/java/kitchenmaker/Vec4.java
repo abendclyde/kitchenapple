@@ -1,9 +1,13 @@
 package kitchenmaker;
 
 /**
- * 4D-Vektor-Klasse für homogene Koordinaten in der 3D-Grafik.
- * Die w-Komponente wird für perspektivische Transformationen verwendet.
+ * Mathematische Vektorklasse für 4-dimensionale homogene Koordinaten.
  *
+ * In der 3D-Computergrafik werden Vektoren oft um eine vierte Komponente (w) erweitert,
+ * um affine Transformationen (wie Translationen) und projektive Transformationen
+ * (wie die perspektivische Verzerrung) durch Matrixmultiplikation darstellen zu können.
+ * Diese Klasse stellt die notwendigen Operationen für solche Transformationen und
+ * die anschließende perspektivische Division bereit.
  *
  * @author Niklas Puls
  */
@@ -14,7 +18,8 @@ public class Vec4 {
     public float w;
 
     /**
-     * Erstellt einen Nullvektor (0, 0, 0, 0).
+     * Standardkonstruktor.
+     * Initialisiert einen Nullvektor (0, 0, 0, 0).
      */
     public Vec4() {
         this.x = 0;
@@ -24,11 +29,8 @@ public class Vec4 {
     }
 
     /**
-     * Erstellt einen Vektor mit den angegebenen Komponenten.
-     * @param x X-Komponente
-     * @param y Y-Komponente
-     * @param z Z-Komponente
-     * @param w W-Komponente (homogen)
+     * Konstruktor zur Initialisierung mit expliziten Komponentenwerten.
+     * Für 3D-Punkte wird w üblicherweise auf 1.0 gesetzt, für Richtungsvektoren auf 0.0.
      */
     public Vec4(float x, float y, float z, float w) {
         this.x = x;
@@ -38,8 +40,8 @@ public class Vec4 {
     }
 
     /**
-     * Erstellt eine Kopie des angegebenen Vektors.
-     * Nützlich, wenn man einen Zustand sichern oder unveränderliche Operationen simulieren möchte.
+     * Copy-Konstruktor.
+     * Erstellt eine tiefe Kopie des übergebenen Vektors, um den Originalzustand zu bewahren.
      */
     public Vec4(Vec4 other) {
         this.x = other.x;
@@ -49,8 +51,8 @@ public class Vec4 {
     }
 
     /**
-     * Setzt die Komponenten dieses Vektors.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Aktualisiert die Komponenten des Vektors.
+     * Gibt die Referenz auf das aktuelle Objekt zurück, um Methodenverkettung (Chaining) zu ermöglichen.
      */
     public Vec4 set(float x, float y, float z, float w) {
         this.x = x;
@@ -61,11 +63,11 @@ public class Vec4 {
     }
 
     /**
-     * Multipliziert diesen Vektor mit einer Matrix (Vektor * Matrix Multiplikation).
-     * Erwartet, dass die Matrix im Column-Major-Format vorliegt (OpenGL-Konvention).
-     * Die Operation überschreibt diesen Vektor mit dem Ergebnis.
-     * @param transformMatrix die Matrix für die Transformation
-     * @return dieser Vektor für Methoden-Verkettung
+     * Multipliziert diesen Vektor mit einer 4x4-Matrix (Transformation).
+     * Die Operation erfolgt mathematisch als Spaltenvektor-Multiplikation (M * v).
+     * Da die Matrix im Column-Major-Format vorliegt, werden die entsprechenden
+     * Matrixelemente für die Linearkombination der Vektorkomponenten herangezogen.
+     * Das Ergebnis überschreibt den aktuellen Vektorinhalt.
      */
     public Vec4 multiply(Mat4 transformMatrix) {
         float[] m = transformMatrix.matrixElements;
@@ -73,6 +75,7 @@ public class Vec4 {
         float resultY = x * m[1] + y * m[5] + z * m[9] + w * m[13];
         float resultZ = x * m[2] + y * m[6] + z * m[10] + w * m[14];
         float resultW = x * m[3] + y * m[7] + z * m[11] + w * m[15];
+
         this.x = resultX;
         this.y = resultY;
         this.z = resultZ;
@@ -81,10 +84,10 @@ public class Vec4 {
     }
 
     /**
-     * Führt die perspektivische Division durch (teilt x, y, z durch w).
-     * Dies konvertiert homogene Koordinaten zurück in kartesische Koordinaten.
-     * Schützt vor Division durch Null mit einer kleinen Toleranz.
-     * @return dieser Vektor für Methoden-Verkettung
+     * Führt die perspektivische Division durch.
+     * Hierbei werden die x, y und z Komponenten durch w geteilt, um von homogenen Koordinaten
+     * (Clip Space) zu kartesischen Koordinaten (Normalized Device Coordinates) zu gelangen.
+     * Eine Division durch Null wird durch einen Schwellenwert-Check verhindert.
      */
     public Vec4 divideByW() {
         if (Math.abs(w) > 0.00001f) {
@@ -92,7 +95,7 @@ public class Vec4 {
             this.x *= inverseW;
             this.y *= inverseW;
             this.z *= inverseW;
-            this.w = 1.0f; // normative Darstellung nach Division
+            this.w = 1.0f; // Nach der Division ist w normativ 1
         }
         return this;
     }

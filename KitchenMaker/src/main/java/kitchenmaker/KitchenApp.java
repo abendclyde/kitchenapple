@@ -18,43 +18,67 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Hauptanwendung für den KitchenMaker-Editor.
- * Verwaltet die Kernlogik der Anwendung: 3D-Objektinteraktion, Raycasting,
- * Webcam-Integration und Formerkennung. Die GUI wird von {@link GUI} verwaltet.
+ * Hauptklasse der KitchenMaker-Anwendung.
+ * Diese Klasse fungiert als zentraler Controller, der die Initialisierung der Anwendung,
+ * die Verwaltung des OpenGL-Kontexts sowie die Koordination zwischen Datenmodell (SceneData),
+ * Rendering (RenderEngine) und Benutzeroberfläche (GUI) übernimmt.
+ * Zudem werden hier die Eingabeverarbeitung (Mausinteraktion, Raycasting) und
+ * die asynchrone Bildverarbeitung (Webcam-Integration) gesteuert.
  *
  * @author Niklas Puls
  */
 public class KitchenApp {
 
+    /** Schwellenwert in Pixeln, ab dem eine Mausbewegung als Drag-Operation erkannt wird. */
     private static final int DRAG_THRESHOLD = 5;
+
+    /** Zeitintervall in Millisekunden, um wiederholte Formerkennungen zu begrenzen. */
     private static final long SHAPE_DETECTION_COOLDOWN = 3000;
+
+    /** Flag, das anzeigt, ob die OpenCV-Bibliothek erfolgreich geladen wurde. */
     private static boolean opencvAvailable = false;
 
+    /**
+     * Thread-sichere Liste aller 3D-Objekte in der Szene.
+     * Synchronisation ist erforderlich, da der Render-Thread (OpenGL) und der Event-Dispatch-Thread (Swing)
+     * gleichzeitig auf diese Liste zugreifen können.
+     */
     private final List<SceneData.Object3D> objects = Collections.synchronizedList(new ArrayList<>());
+
     private final RenderEngine renderer;
     private final GLJPanel gljPanel;
+
     private final DefaultListModel<SceneData.Object3D> listModel;
     private final JList<SceneData.Object3D> objectList;
+
     private final Vec3 dragOffsetVector = new Vec3();
+
     private final JLabel webcamLabel;
 
     private GUI gui;
     private ShapeDetector shapeDetector;
     private boolean shapeDetection = true;
     private long lastShapeDetectionTime = 0;
+
     private volatile boolean dialogOpen = false;
     private boolean webcamRunning = false;
 
+    // Statusvariablen für die Mausinteraktion
     private boolean isDraggingObject = false;
     private boolean isDragging = false;
     private int lastMouseX, lastMouseY, pressedMouseX, pressedMouseY;
+
+    /** Y-Koordinate der Ebene, auf der das aktuelle Objekt verschoben wird. */
     private float dragPlaneY = 0;
 
     /**
-     * Anwendungseintrittspunkt. Lädt OpenCV falls verfügbar und startet die UI im EDT.
+     * Einstiegspunkt der Anwendung.
+     * Initialisiert das Look-and-Feel, lädt native Bibliotheken (OpenCV) und startet die GUI
+     * im Event-Dispatch-Thread (EDT). Die übergebenen Kommandozeilenargumente werden ignoriert.
      */
     public static void main(String[] args) {
         FlatDarkLaf.setup();
+        // UI-Anpassungen für konsistentes Design
         UIManager.put("Button.arc", 8);
         UIManager.put("Component.arc", 8);
         UIManager.put("TextComponent.arc", 8);
@@ -64,17 +88,15 @@ public class KitchenApp {
             opencvAvailable = true;
         } catch (Throwable t) {
             opencvAvailable = false;
+            System.err.println("Warnung: OpenCV konnte nicht geladen werden. Bildverarbeitungsfunktionen sind deaktiviert.");
         }
 
-        if (System.getProperty("os.name").toLowerCase().contains("mac")) {
-            new KitchenApp();
-        } else {
-            SwingUtilities.invokeLater(KitchenApp::new);
-        }
+        SwingUtilities.invokeLater(KitchenApp::new);
     }
 
     /**
-     * Konstruktor: initialisiert Renderer, OpenGL und GUI.
+     * Konstruktor der Anwendung.
+     * Initialisiert die OpenGL-Umgebung, den Renderer und die grafische Benutzeroberfläche.
      */
     public KitchenApp() {
         if (opencvAvailable) {
@@ -83,9 +105,10 @@ public class KitchenApp {
 
         renderer = new RenderEngine(objects);
 
+        // Konfiguration des OpenGL-Profils
         GLProfile glProfile = GLProfile.getDefault();
         GLCapabilities glCapabilities = new GLCapabilities(glProfile);
-        glCapabilities.setDoubleBuffered(true);
+        glCapabilities.setDoubleBuffered(true); // Double Buffering zur Vermeidung von Flimmern
         glCapabilities.setHardwareAccelerated(true);
 
         gljPanel = new GLJPanel(glCapabilities);
@@ -94,6 +117,7 @@ public class KitchenApp {
         listModel = new DefaultListModel<>();
         objectList = new JList<>(listModel);
 
+        // Initialisierung der Webcam-Vorschau-Komponente
         webcamLabel = new JLabel("Aus", SwingConstants.CENTER);
         webcamLabel.setPreferredSize(Theme.WEBCAM_PREVIEW);
         webcamLabel.setBackground(Theme.BACKGROUND_DARK);
@@ -101,31 +125,34 @@ public class KitchenApp {
         webcamLabel.setOpaque(true);
         webcamLabel.setBorder(BorderFactory.createLineBorder(Theme.BORDER));
 
-        // Erstelle die GUI
+        // Erzeugung der Haupt-GUI
         gui = new GUI(this, objects, renderer, gljPanel, listModel, objectList, webcamLabel);
 
         setupInteraction();
 
         gui.setVisible(true);
 
+        // Start des Render-Loops mit angestrebten 60 FPS
         new FPSAnimator(gljPanel, 60).start();
     }
 
     /**
-     * Fügt ein Objekt nach Typ hinzu.
+     * Erzeugt eine neue Objektinstanz basierend auf dem übergebenen Typbezeichner (z.B. "cube").
      */
     public void addObjectByType(String type) {
         SceneData.Object3D obj = SceneData.createByType(type);
         if (obj != null) {
+            // Generierung eines eindeutigen Namens für die Anzeige
             obj.name = obj.name + " " + (objects.size() + 1);
             addObject(obj);
         }
     }
 
     /**
-     * Fügt ein Objekt zur Szene hinzu.
+     * Fügt ein 3D-Objekt zur Szene hinzu und aktualisiert die UI-Komponenten.
      */
     void addObject(SceneData.Object3D obj) {
+        // Startet die Initial-Animation (z.B. Skalierung beim Erscheinen)
         obj.startAnimation(gui.getCurrentAppearanceMode(), gui.getAnimationDurationSeconds());
 
         objects.add(obj);
@@ -135,13 +162,16 @@ public class KitchenApp {
     }
 
     /**
-     * Löscht das ausgewählte Objekt.
+     * Entfernt das aktuell ausgewählte Objekt aus der Szene und der Liste.
+     * Die Selektion wird anschließend auf das vorherige Element verschoben.
      */
     public void deleteSelectedObject() {
         if (renderer.selectedObject != null) {
             int id = objects.indexOf(renderer.selectedObject);
             objects.remove(renderer.selectedObject);
             listModel.removeElement(renderer.selectedObject);
+
+            // Intelligente Neuselektion
             renderer.selectedObject = objects.isEmpty() ? null : objects.get(Math.max(0, id - 1));
             if (renderer.selectedObject != null) {
                 objectList.setSelectedValue(renderer.selectedObject, true);
@@ -150,7 +180,7 @@ public class KitchenApp {
     }
 
     /**
-     * Öffnet einen Datei-Dialog zum Importieren einer OBJ-Datei.
+     * Öffnet einen Dateidialog zum Import von Wavefront OBJ-Dateien.
      */
     public void importObjFile() {
         JFileChooser fc = new JFileChooser();
@@ -171,13 +201,18 @@ public class KitchenApp {
         this.shapeDetection = enabled;
     }
 
+    /**
+     * Registriert Event-Listener für Tastatur- und Mausinteraktionen.
+     * Behandelt Shortcuts, Objektauswahl (Picking) und Kamerasteuerung.
+     */
     private void setupInteraction() {
+        // Globaler KeyEventDispatcher für anwendungsweite Shortcuts
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(e -> {
             if (e.getID() == KeyEvent.KEY_PRESSED) {
-                if (e.getKeyCode() == KeyEvent.VK_DELETE || e.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
+                if (e.getKeyCode() == KeyEvent.VK_DELETE || e.getKeyCode() == KeyEvent.VK_BACK_SPACE) { // Entf oder Backspace für Löschen
                     deleteSelectedObject();
                     return true;
-                } else if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_O) {
+                } else if (e.isControlDown() && e.getKeyCode() == KeyEvent.VK_O) { // Strg + O für Import
                     importObjFile();
                     return true;
                 }
@@ -194,11 +229,13 @@ public class KitchenApp {
                 isDraggingObject = false;
 
                 if (SwingUtilities.isLeftMouseButton(e)) {
+                    // Durchführung des Raycastings zur Objektselektion
                     SceneData.Object3D clicked = pickObject(e.getX(), e.getY());
                     if (clicked != null) {
                         renderer.selectedObject = clicked;
                         objectList.setSelectedValue(clicked, true);
 
+                        // Berechnung des Offsets für präzises Verschieben
                         dragPlaneY = clicked.worldPosition.y;
                         Vec3 hitPoint = screenToGroundPlane(e.getX(), e.getY(), dragPlaneY);
                         dragOffsetVector.set(hitPoint).subtract(clicked.worldPosition);
@@ -222,8 +259,9 @@ public class KitchenApp {
                 int dx = e.getX() - lastMouseX;
                 int dy = e.getY() - lastMouseY;
 
+                // Unterscheidung zwischen Klick und Drag anhand des Schwellenwerts
                 if (Math.abs(e.getX() - pressedMouseX) > DRAG_THRESHOLD ||
-                    Math.abs(e.getY() - pressedMouseY) > DRAG_THRESHOLD) {
+                        Math.abs(e.getY() - pressedMouseY) > DRAG_THRESHOLD) {
                     isDragging = true;
                     if (renderer.selectedObject != null) {
                         isDraggingObject = true;
@@ -234,7 +272,9 @@ public class KitchenApp {
                     if (isDraggingObject && renderer.selectedObject != null) {
                         moveObjectOnGround(renderer.selectedObject, e.getX(), e.getY());
                     } else {
+                        // Kamerarotation (Orbit-Control)
                         renderer.cameraYaw -= dx * 0.5f;
+                        // Begrenzung des Pitch-Winkels zur Vermeidung von Gimbal-Lock-ähnlichen Effekten
                         renderer.cameraPitch = Math.max(-85f, Math.min(85f, renderer.cameraPitch + dy * 0.5f));
                     }
                     gljPanel.repaint();
@@ -245,25 +285,34 @@ public class KitchenApp {
             }
         });
 
+        // Zoom-Funktionalität via Mausrad
         gljPanel.addMouseWheelListener(e ->
-            renderer.cameraDistance = Math.max(1f, Math.min(50f,
-                renderer.cameraDistance + (float)e.getPreciseWheelRotation() * 0.5f))
+                renderer.cameraDistance = Math.max(1f, Math.min(50f,
+                        renderer.cameraDistance + (float)e.getPreciseWheelRotation() * 0.5f))
         );
     }
 
+    /** Hilfs-Record zur Repräsentation eines Strahls im 3D-Raum. */
     private record Ray(Vec3 rayOriginPoint, Vec3 rayDirectionVector) {}
 
+    /**
+     * Transformiert 2D-Mauskoordinaten in einen 3D-Strahl (Raycasting).
+     * <p>
+     * Die Methode führt eine Rückprojektion (Unprojection) von Screen-Koordinaten über
+     * Normalized Device Coordinates (NDC) in den Weltraum durch, unter Verwendung
+     * der aktuellen View- und Projection-Matrizen.
+     * </p>
+     */
     private Ray createRayFromMouse(int mouseX, int mouseY) {
-        // Robuste Abfrage der Panel-Größe (vermeidet Division durch Null)
         int w = Math.max(1, gljPanel.getWidth());
         int h = Math.max(1, gljPanel.getHeight());
         float aspect = (float) w / h;
 
-        // Normalisierte Gerätekoordinaten (NDC) im Bereich [-1,1]
+        // Transformation in Normalized Device Coordinates (NDC) [-1, 1]
         float normalizedDeviceX = (2.0f * mouseX) / w - 1.0f;
         float normalizedDeviceY = 1.0f - (2.0f * mouseY) / h;
 
-        // Kamera-Position (berechnet aus spherical coordinates - yaw/pitch/distance)
+        // Berechnung der Kameraposition aus sphärischen Koordinaten
         float pitchInRadians = (float) Math.toRadians(renderer.cameraPitch);
         float yawInRadians = (float) Math.toRadians(renderer.cameraYaw);
         float cameraX = renderer.cameraDistance * (float)(Math.cos(pitchInRadians) * Math.sin(yawInRadians));
@@ -271,42 +320,41 @@ public class KitchenApp {
         float cameraZ = renderer.cameraDistance * (float)(Math.cos(pitchInRadians) * Math.cos(yawInRadians));
         Vec3 cameraPosition = new Vec3(cameraX, cameraY, cameraZ).add(renderer.cameraTarget);
 
-        // Erstelle Projektions- und View-Matrizen wie im Renderer
+        // Aufbau der Projektions- und View-Matrizen
         Mat4 projectionMatrix = new Mat4().setPerspective((float) Math.toRadians(renderer.fov), aspect, 0.1f, 100f);
         Mat4 viewMatrix = new Mat4().setLookAt(cameraPosition, renderer.cameraTarget, new Vec3(0, 1, 0));
 
-        // Inverse der View-Projection-Matrix: wir wollen von NDC zurück in Weltkoordinaten
-        // Achtung: Mat4.invertMatrix setzt bei nicht-invertierbarer Matrix die Identität;
-        // das ist eine Fallback-Strategie, die hier beibehalten wird.
+        // Berechnung der Inversen View-Projection-Matrix für die Rücktransformation
         Mat4 inverseViewProjectionMatrix = new Mat4(projectionMatrix).multiplyMatrix(viewMatrix).invertMatrix();
 
-        // Erzeuge Punkte in Clip-Space für nahe und ferne Ebene und transformiere sie in Weltkoordinaten
+        // Transformation der Near- und Far-Plane-Punkte von NDC in Weltkoordinaten
         Vec4 rayNearPoint = new Vec4(normalizedDeviceX, normalizedDeviceY, -1f, 1f).multiply(inverseViewProjectionMatrix);
-        rayNearPoint.divideByW();
+        rayNearPoint.divideByW(); // Perspektivische Division
         Vec4 rayFarPoint = new Vec4(normalizedDeviceX, normalizedDeviceY, 1f, 1f).multiply(inverseViewProjectionMatrix);
         rayFarPoint.divideByW();
 
-        // Origin ist der Punkt bei z=-1 (in Weltkoordinaten). Die Richtung ist (far - near).
         Vec3 rayOriginPoint = new Vec3(rayNearPoint.x, rayNearPoint.y, rayNearPoint.z);
         Vec3 rayDirectionVector = new Vec3(rayFarPoint.x - rayNearPoint.x, rayFarPoint.y - rayNearPoint.y, rayFarPoint.z - rayNearPoint.z).normalize();
 
         return new Ray(rayOriginPoint, rayDirectionVector);
     }
 
+    /**
+     * Ermittelt das dem Betrachter am nächsten liegende Objekt, das vom Mausstrahl getroffen wird.
+     * Gibt das getroffene Objekt zurück oder null, falls kein Schnittpunkt existiert.
+     */
     private SceneData.Object3D pickObject(int mouseX, int mouseY) {
-        // Erzeuge einen Ray aus der Mausposition
         Ray ray = createRayFromMouse(mouseX, mouseY);
 
         SceneData.Object3D closest = null;
         float closestDist = Float.MAX_VALUE;
 
-        // Synchronisiere Zugriff auf die Objektliste (gleiche Semantik wie zuvor)
+        // Synchronisierter Zugriff auf die Objektliste zur Vermeidung von Race Conditions
         synchronized (objects) {
             for (SceneData.Object3D obj : objects) {
-                // intersectAABB liefert den Parameter t des Schnittpunkts (Eintrittspunkt)
                 float t = intersectAABB(ray.rayOriginPoint, ray.rayDirectionVector, obj);
 
-                // Wir interessieren uns für Treffers mit positivem t (vor dem Ray-Start) und suchen den nächsten
+                // Suche nach dem kleinsten positiven Schnittparameter t
                 if (t > 0 && t < closestDist) {
                     closestDist = t;
                     closest = obj;
@@ -317,75 +365,66 @@ public class KitchenApp {
         return closest;
     }
 
-    /*
-     * Grundidee des AABB-Ray-Tests (Slab method):
-     * Für jede Achse (X, Y, Z) berechnen wir das Intervall [tMin, tMax], in dem
-     * der Ray die Ebene zwischen den min/max Koordinaten der AABB schneidet.
-     *
-     * Ray-Punkt: P(t) = origin + t * direction
-     * Schnitt mit Ebene x = a => t = (a - origin.x) / direction.x
-     *
-     * Für jede Achse erhalten wir zwei t-Werte; wir sorgen durch Tausch dafür,
-     * dass tMin <= tMax gilt (falls die Richtung negativ ist, vertauschen sich die Werte).
-     * Die Gesamtschnittmenge ist der Schnitt der Achsen-Intervalle. Falls die
-     * Intervalle keine gemeinsame Überlappung haben, existiert kein Schnittpunkt.
+    /**
+     * Berechnet den Schnittpunkt eines Strahls mit der Axis-Aligned Bounding Box (AABB) eines Objekts.
+     * Implementiert den "Slab"-Algorithmus.
+     * Gibt den Abstand t zum Eintrittspunkt zurück oder -1, falls kein Schnittpunkt existiert.
      */
-
     private float intersectAABB(Vec3 rayOriginPoint, Vec3 rayDirectionVector, SceneData.Object3D obj) {
-        // Transformiere die lokale Axis-Aligned Bounding Box (AABB) in Weltkoordinaten.
-        // Lokale Bounds werden zuerst skaliert und dann um die Weltposition verschoben.
+        // Transformation der lokalen AABB in Weltkoordinaten
         Vec3 aabbMinWorld = new Vec3(obj.boundingBoxMin).multiply(obj.scaleFactors).add(obj.worldPosition);
         Vec3 aabbMaxWorld = new Vec3(obj.boundingBoxMax).multiply(obj.scaleFactors).add(obj.worldPosition);
 
-        // Optionaler Puffer, um kleine Lücken/Toleranzen im Modell auszugleichen.
+        // Hinzufügen einer Toleranz (Padding) zur Verbesserung der Klickbarkeit
         float padding = 0.2f;
         aabbMinWorld.subtract(padding, padding, padding);
         aabbMaxWorld.add(padding, padding, padding);
 
+        // Berechnung der Schnittintervalle für die X-Achse
         float tMinX = (aabbMinWorld.x - rayOriginPoint.x) / rayDirectionVector.x;
         float tMaxX = (aabbMaxWorld.x - rayOriginPoint.x) / rayDirectionVector.x;
         if (tMinX > tMaxX) { float tmp = tMinX; tMinX = tMaxX; tMaxX = tmp; }
 
+        // Berechnung der Schnittintervalle für die Y-Achse
         float tMinY = (aabbMinWorld.y - rayOriginPoint.y) / rayDirectionVector.y;
         float tMaxY = (aabbMaxWorld.y - rayOriginPoint.y) / rayDirectionVector.y;
         if (tMinY > tMaxY) { float tmp = tMinY; tMinY = tMaxY; tMaxY = tmp; }
 
-        // Schnellabbruch: Wenn X- und Y-Intervalle sich nicht überlappen, gibt es keinen Schnitt.
+        // Prüfung auf Disjunktion der Intervalle
         if (tMinX > tMaxY || tMinY > tMaxX) return -1;
 
-        /*
-         * Kombiniere die X- und Y-Intervalle zu einem temporären Intervall.
-         * Das kombinierte Minimum T tMinX ist das größere der beiden Startwerte (weil beide erfüllt sein müssen),
-         * das kombinierte Maximum T tMaxX ist das kleinere der beiden Endwerte (beide dürfen nicht überschritten werden).
-         *
-         * Wir verwenden Math.max/Math.min hier, weil es die Absicht klar ausdrückt und
-         * für statische Analysen besser lesbar ist als direkte Zuweisungen.
-         */
-        tMinX = Math.max(tMinX, tMinY); // kombiniertes Intervall-Start
-        tMaxX = Math.min(tMaxX, tMaxY); // kombiniertes Intervall-Ende
+        // Intervall-Schnittbildung (Clipping)
+        tMinX = Math.max(tMinX, tMinY);
+        tMaxX = Math.min(tMaxX, tMaxY);
 
-        // Z-Achse: gleiche Berechnung wie zuvor
+        // Berechnung der Schnittintervalle für die Z-Achse
         float tMinZ = (aabbMinWorld.z - rayOriginPoint.z) / rayDirectionVector.z;
         float tMaxZ = (aabbMaxWorld.z - rayOriginPoint.z) / rayDirectionVector.z;
         if (tMinZ > tMaxZ) { float tmp = tMinZ; tMinZ = tMaxZ; tMaxZ = tmp; }
 
-        // Überprüfe, ob das kombinierte XY-Intervall mit dem Z-Intervall überlappt.
         if (tMinX > tMaxZ || tMinZ > tMaxX) return -1;
 
-        // Endgültiges kombiniertes Start-t ist das Maximum der bisherigen Starts (einschließlich Z)
+        // Finaler Eintrittspunkt
         tMinX = Math.max(tMinX, tMinZ);
 
-        // Ergebnis: tMinX ist der Eintrittsparameter; negativ bedeutet, der Eintrittspunkt liegt
-        // hinter dem Ray-Start (falls benötigt, kann der Aufrufer dies filtern).
         return tMinX;
     }
 
+    /**
+     * Berechnet den Schnittpunkt des Mausstrahls mit einer horizontalen Ebene (y = const).
+     * Gibt den Schnittpunkt im 3D-Raum zurück.
+     */
     private Vec3 screenToGroundPlane(int mouseX, int mouseY, float planeY) {
         Ray ray = createRayFromMouse(mouseX, mouseY);
+        // Ebenengleichung: P_y = planeY => origin.y + t * dir.y = planeY
         float t = (planeY - ray.rayOriginPoint.y) / ray.rayDirectionVector.y;
         return new Vec3(ray.rayOriginPoint).add(new Vec3(ray.rayDirectionVector).multiply(t));
     }
 
+    /**
+     * Verschiebt ein Objekt auf der definierten Ebene basierend auf der Mausposition.
+     * Berücksichtigt den anfänglichen Klick-Offset, um Sprünge zu vermeiden.
+     */
     private void moveObjectOnGround(SceneData.Object3D obj, int mouseX, int mouseY) {
         Vec3 hitPoint = screenToGroundPlane(mouseX, mouseY, dragPlaneY);
         obj.worldPosition.x = hitPoint.x - dragOffsetVector.x;
@@ -393,7 +432,8 @@ public class KitchenApp {
     }
 
     /**
-     * Schaltet die Webcam ein oder aus.
+     * Aktiviert oder deaktiviert die Webcam-Erfassung.
+     * Startet bei Aktivierung einen separaten Thread für die Bildverarbeitung.
      */
     public void toggleWebcam() {
         if (webcamRunning) {
@@ -409,6 +449,10 @@ public class KitchenApp {
         }
     }
 
+    /**
+     * Hauptschleife des Webcam-Threads.
+     * Liest Frames von der Kamera und führt die Formerkennung durch.
+     */
     private void webcamLoop() {
         VideoCapture capture = new VideoCapture(0);
 
@@ -424,11 +468,12 @@ public class KitchenApp {
         Mat frame = new Mat();
         while (webcamRunning) {
             if (capture.read(frame) && !frame.empty()) {
-                java.util.List<ShapeDetector.DetectedShape> detectedShapes;
+                // Optionale Formerkennung
                 if (shapeDetection && shapeDetector != null) {
-                    detectedShapes = shapeDetector.detectShapes(frame);
+                    java.util.List<ShapeDetector.DetectedShape> detectedShapes = shapeDetector.detectShapes(frame);
 
                     long currentTime = System.currentTimeMillis();
+                    // Überprüfung des Cooldowns und ob bereits ein Dialog offen ist
                     if (!dialogOpen && currentTime - lastShapeDetectionTime > SHAPE_DETECTION_COOLDOWN) {
                         for (ShapeDetector.DetectedShape shape : detectedShapes) {
                             if (ShapeDetector.isValidMapping(shape)) {
@@ -440,6 +485,7 @@ public class KitchenApp {
                     }
                 }
 
+                // Konvertierung für Swing-Anzeige
                 BufferedImage img = matToImage(frame);
                 Image scaled = img.getScaledInstance(260, 195, Image.SCALE_FAST);
                 SwingUtilities.invokeLater(() -> {
@@ -452,6 +498,10 @@ public class KitchenApp {
         capture.release();
     }
 
+    /**
+     * Zeigt einen Bestätigungsdialog für ein erkanntes Objekt an.
+     * Wird im Event-Dispatch-Thread ausgeführt.
+     */
     private void showAddShapeDialog(ShapeDetector.DetectedShape shape) {
         dialogOpen = true;
         SwingUtilities.invokeLater(() -> {
@@ -459,11 +509,11 @@ public class KitchenApp {
             String objectName = shape.get3DObjectName();
 
             int result = JOptionPane.showConfirmDialog(
-                gui,
-                shapeName + " erkannt!\n\nMöchten Sie " + objectName + " zur Szene hinzufügen?",
-                "Form erkannt",
-                JOptionPane.YES_NO_OPTION,
-                JOptionPane.QUESTION_MESSAGE
+                    gui,
+                    shapeName + " erkannt!\n\nMöchten Sie " + objectName + " zur Szene hinzufügen?",
+                    "Form erkannt",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
             );
 
             if (result == JOptionPane.YES_OPTION) {
@@ -476,6 +526,7 @@ public class KitchenApp {
         });
     }
 
+    /** OpenCV Mat zu BufferedImage umwandeln, sodass es im GUI genutzt werden kann */
     private BufferedImage matToImage(Mat m) {
         int type = (m.channels() > 1) ? BufferedImage.TYPE_3BYTE_BGR : BufferedImage.TYPE_BYTE_GRAY;
         byte[] b = new byte[m.channels() * m.cols() * m.rows()];
@@ -485,4 +536,3 @@ public class KitchenApp {
         return image;
     }
 }
-
