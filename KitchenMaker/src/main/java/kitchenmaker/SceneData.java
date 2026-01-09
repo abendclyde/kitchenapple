@@ -145,6 +145,7 @@ public class SceneData {
             return true;
         }
 
+        //Lineare Interpolation, sodass Animationen abgeflacht aufhören
         private float lerp(float start, float end, float t) {
             return start + t * (end - start);
         }
@@ -163,11 +164,11 @@ public class SceneData {
             }
         }
 
-        public void render(GL2 gl, int shaderId, int modelLoc, int colorLoc) {
+        public void render(GL2 gl, int modelLoc, int colorLoc) {
             draw(gl, modelLoc, colorLoc, GL2.GL_TRIANGLES);
         }
 
-        public void renderLines(GL2 gl, int shaderId, int modelLoc, int colorLoc) {
+        public void renderLines(GL2 gl, int modelLoc, int colorLoc) {
             draw(gl, modelLoc, colorLoc, GL2.GL_LINES);
         }
 
@@ -293,21 +294,29 @@ public class SceneData {
         }
     }
 
-    // Gemeinsame OBJ-Parsing-Logik
+    /**
+     * Einfaches OBJ-Parsing (unterstützt: v, vn, f).
+     */
     private static Object3D parseObj(BufferedReader br, String objectName) throws IOException {
+        // Positionen, Normale und interleavter Vertex-Puffer
         List<Float> v = new ArrayList<>(), vn = new ArrayList<>(), buffer = new ArrayList<>();
+        // Dreiecksindizes
         List<Integer> indices = new ArrayList<>();
 
         String line;
         while ((line = br.readLine()) != null) {
             String[] p = line.trim().split("\\s+");
-            if (p.length == 0) continue;
+            if (p.length == 0 || p[0].isEmpty()) continue;
 
             switch (p[0]) {
-                case "v" -> { v.add(Float.valueOf(p[1])); v.add(Float.valueOf(p[2])); v.add(Float.valueOf(p[3])); }
-                case "vn" -> { vn.add(Float.valueOf(p[1])); vn.add(Float.valueOf(p[2])); vn.add(Float.valueOf(p[3])); }
+                case "v" -> {
+                    v.add(Float.valueOf(p[1])); v.add(Float.valueOf(p[2])); v.add(Float.valueOf(p[3]));
+                }
+                case "vn" -> {
+                    vn.add(Float.valueOf(p[1])); vn.add(Float.valueOf(p[2])); vn.add(Float.valueOf(p[3]));
+                }
                 case "f" -> {
-                    // Sammle alle Vertices der Face (unterstützt Tris, Quads und N-Gons)
+                    // Face-Vertex-Referenzen sammeln
                     List<int[]> faceVertices = new ArrayList<>();
                     for (int k = 1; k < p.length; k++) {
                         String[] fv = p[k].split("/");
@@ -315,12 +324,13 @@ public class SceneData {
                         int ni = fv.length > 2 && !fv[2].isEmpty() ? Integer.parseInt(fv[2]) - 1 : -1;
                         faceVertices.add(new int[]{vi, ni});
                     }
-                    // Fan-Triangulierung
+                    // Triangulieren (Fan)
                     for (int i = 0; i < faceVertices.size() - 2; i++) {
                         int[][] triangle = {faceVertices.get(0), faceVertices.get(i + 1), faceVertices.get(i + 2)};
                         for (int[] vertex : triangle) {
                             int vi = vertex[0], ni = vertex[1];
                             buffer.add(v.get(vi * 3)); buffer.add(v.get(vi * 3 + 1)); buffer.add(v.get(vi * 3 + 2));
+                            // Normale oder Standard (0,1,0)
                             if (ni >= 0 && ni < vn.size() / 3) {
                                 buffer.add(vn.get(ni * 3)); buffer.add(vn.get(ni * 3 + 1)); buffer.add(vn.get(ni * 3 + 2));
                             } else {
@@ -329,6 +339,9 @@ public class SceneData {
                             indices.add(indices.size());
                         }
                     }
+                }
+                default -> {
+                    // Ignoriere andere Anweisungen
                 }
             }
         }

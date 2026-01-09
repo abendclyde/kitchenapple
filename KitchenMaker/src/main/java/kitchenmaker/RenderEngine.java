@@ -131,7 +131,7 @@ public class RenderEngine implements GLEventListener {
 
         // Gitter rendern
         gl.glUniform1i(locIsSelected, 0);
-        grid.renderLines(gl, programId, locModel, locColor);
+        grid.renderLines(gl, locModel, locColor);
 
         // Objekte rendern (mit Animationsupdate)
         synchronized (objects) {
@@ -140,7 +140,7 @@ public class RenderEngine implements GLEventListener {
                 obj.updateAnimation();
 
                 gl.glUniform1i(locIsSelected, (obj == selectedObject) ? 1 : 0);
-                obj.render(gl, programId, locModel, locColor);
+                obj.render(gl, locModel, locColor);
             }
         }
     }

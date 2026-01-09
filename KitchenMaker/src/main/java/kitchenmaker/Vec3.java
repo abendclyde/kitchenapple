@@ -3,6 +3,7 @@ package kitchenmaker;
 /**
  * 3D-Vektor-Klasse für Position, Rotation und Richtung.
  * Verwendet mutable Felder für Performance bei 3D-Rendering.
+ * Es kann mehrmals Vec3 genutzt werden wegen Constructor-Overloading.
  *
  * @author Niklas Puls
  */
