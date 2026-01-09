@@ -6,9 +6,6 @@ import com.jogamp.opengl.GLCapabilities;
 import com.jogamp.opengl.GLProfile;
 import com.jogamp.opengl.awt.GLJPanel;
 import com.jogamp.opengl.util.FPSAnimator;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
-import org.joml.Vector4f;
 import org.opencv.core.Mat;
 import org.opencv.videoio.VideoCapture;
 
@@ -33,7 +30,7 @@ public class KitchenApp extends JFrame {
     private final GLJPanel gljPanel;
     private final DefaultListModel<SceneData.Object3D> listModel;
     private final JList<SceneData.Object3D> objectList;
-    private final Vector3f dragOffset = new Vector3f();
+    private final Vec3 dragOffsetVector = new Vec3();
 
     private JLabel webcamLabel;
     private boolean webcamRunning = false;
@@ -47,7 +44,6 @@ public class KitchenApp extends JFrame {
     private int lastMouseX, lastMouseY, pressedMouseX, pressedMouseY;
     private float dragPlaneY = 0;
 
-    // Animationseinstellungen
     private SceneData.AppearanceMode currentAppearanceMode = SceneData.AppearanceMode.FALL_DOWN;
     private float animationDurationSeconds = 0.8f;
 
@@ -117,7 +113,6 @@ public class KitchenApp extends JFrame {
         add(gljPanel, BorderLayout.CENTER);
         add(createSidePanel(), BorderLayout.WEST);
 
-
         setupInteraction();
         setLocationRelativeTo(null);
         setVisible(true);
@@ -158,7 +153,6 @@ public class KitchenApp extends JFrame {
 
         toolbar.addSeparator(new Dimension(20, 0));
 
-        // Animationsmodus-Auswahl
         JLabel animLabel = new JLabel("Animation:");
         animLabel.setForeground(Theme.TEXT_LABEL);
         toolbar.add(animLabel);
@@ -172,7 +166,6 @@ public class KitchenApp extends JFrame {
 
         toolbar.add(Box.createHorizontalStrut(15));
 
-        // Animationsdauer-Slider
         JLabel durationLabel = new JLabel("Dauer:");
         durationLabel.setForeground(Theme.TEXT_LABEL);
         toolbar.add(durationLabel);
@@ -205,7 +198,6 @@ public class KitchenApp extends JFrame {
     private void showAddObjectMenu(JButton source) {
         JPopupMenu menu = new JPopupMenu();
 
-        // Küchenobjekte: {Typ, Anzeigename, Icon}
         String[][] items = {
             {"Fridge", "Kühlschrank", "icons/fridge.svg"},
             {"Microwave", "Mikrowelle", "icons/microwave.svg"},
@@ -313,17 +305,15 @@ public class KitchenApp extends JFrame {
         dialog.setLocationRelativeTo(this);
         dialog.setLayout(new BorderLayout());
 
-        // Original-Werte speichern für Abbrechen-Funktion
         String originalName = obj.name;
-        Vector3f originalPos = new Vector3f(obj.position);
-        float originalRotY = obj.rotation.y;
-        Vector3f originalColor = new Vector3f(obj.color);
+        Vec3 originalPosition = new Vec3(obj.worldPosition);
+        float originalRotationY = obj.rotationAngles.y;
+        Vec3 originalColor = new Vec3(obj.color);
 
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBorder(new EmptyBorder(20, 20, 20, 20));
 
-        // Name-Feld
         JPanel namePanel = createLabeledField("Name:");
         JTextField nameField = new JTextField(obj.name);
         nameField.addKeyListener(new KeyAdapter() {
@@ -333,19 +323,17 @@ public class KitchenApp extends JFrame {
         content.add(namePanel);
         content.add(Box.createVerticalStrut(15));
 
-        // Position-Slider
-        content.add(createSlider("Position X:", -100, 100, (int)(obj.position.x * 10),
-            v -> { obj.position.x = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
-        content.add(createSlider("Position Y:", -100, 100, (int)(obj.position.y * 10),
-            v -> { obj.position.y = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
-        content.add(createSlider("Position Z:", -100, 100, (int)(obj.position.z * 10),
-            v -> { obj.position.z = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
-        content.add(createSlider("Rotation Y:", 0, 360, (int)Math.toDegrees(obj.rotation.y),
-            v -> { obj.rotation.y = (float)Math.toRadians(v); gljPanel.repaint(); }, "%d°", 1f));
+        content.add(createSlider("Position X:", -100, 100, (int)(obj.worldPosition.x * 10),
+            v -> { obj.worldPosition.x = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
+        content.add(createSlider("Position Y:", -100, 100, (int)(obj.worldPosition.y * 10),
+            v -> { obj.worldPosition.y = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
+        content.add(createSlider("Position Z:", -100, 100, (int)(obj.worldPosition.z * 10),
+            v -> { obj.worldPosition.z = v / 10f; gljPanel.repaint(); }, "%.1f", 10f));
+        content.add(createSlider("Rotation Y:", 0, 360, (int)Math.toDegrees(obj.rotationAngles.y),
+            v -> { obj.rotationAngles.y = (float)Math.toRadians(v); gljPanel.repaint(); }, "%d°", 1f));
 
         content.add(Box.createVerticalStrut(10));
 
-        // Farbauswahl
         JPanel colorPanel = createLabeledField("Farbe:");
         JButton colorButton = new JButton("  ");
         colorButton.setBackground(new Color(obj.color.x, obj.color.y, obj.color.z));
@@ -367,13 +355,12 @@ public class KitchenApp extends JFrame {
         colorPanel.add(colorButton);
         content.add(colorPanel);
 
-        // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton cancelButton = new JButton("Abbrechen");
         cancelButton.addActionListener(e -> {
             obj.name = originalName;
-            obj.position.set(originalPos);
-            obj.rotation.y = originalRotY;
+            obj.worldPosition.set(originalPosition);
+            obj.rotationAngles.y = originalRotationY;
             obj.color.set(originalColor);
             objectList.repaint();
             gljPanel.repaint();
@@ -415,7 +402,6 @@ public class KitchenApp extends JFrame {
     }
 
     private void addObject(SceneData.Object3D obj) {
-        // Animation starten basierend auf aktuellen Einstellungen
         obj.startAnimation(currentAppearanceMode, animationDurationSeconds);
 
         objects.add(obj);
@@ -475,11 +461,10 @@ public class KitchenApp extends JFrame {
                         renderer.selectedObject = clicked;
                         objectList.setSelectedValue(clicked, true);
 
-                        dragPlaneY = clicked.position.y;
-                        Vector3f hitPoint = screenToGroundPlane(e.getX(), e.getY(), dragPlaneY);
-                        dragOffset.set(hitPoint).sub(clicked.position);
+                        dragPlaneY = clicked.worldPosition.y;
+                        Vec3 hitPoint = screenToGroundPlane(e.getX(), e.getY(), dragPlaneY);
+                        dragOffsetVector.set(hitPoint).subtract(clicked.worldPosition);
                     } else {
-                        // Ins Nichts geklickt - Objekt-Selektion aufheben für Kamera-Rotation
                         renderer.selectedObject = null;
                         objectList.clearSelection();
                     }
@@ -527,42 +512,42 @@ public class KitchenApp extends JFrame {
         );
     }
 
-    private record Ray(Vector3f origin, Vector3f direction) {}
+    private record Ray(Vec3 rayOriginPoint, Vec3 rayDirectionVector) {}
 
     private Ray createRayFromMouse(int mouseX, int mouseY) {
         int w = gljPanel.getWidth();
         int h = gljPanel.getHeight();
         float aspect = (float) w / h;
 
-        float ndcX = (2.0f * mouseX) / w - 1.0f;
-        float ndcY = 1.0f - (2.0f * mouseY) / h;
+        float normalizedDeviceX = (2.0f * mouseX) / w - 1.0f;
+        float normalizedDeviceY = 1.0f - (2.0f * mouseY) / h;
 
-        float pitchRad = (float) Math.toRadians(renderer.cameraPitch);
-        float yawRad = (float) Math.toRadians(renderer.cameraYaw);
-        float camX = renderer.cameraDistance * (float)(Math.cos(pitchRad) * Math.sin(yawRad));
-        float camY = renderer.cameraDistance * (float) Math.sin(pitchRad);
-        float camZ = renderer.cameraDistance * (float)(Math.cos(pitchRad) * Math.cos(yawRad));
-        Vector3f camPos = new Vector3f(camX, camY, camZ).add(renderer.camTarget);
+        float pitchInRadians = (float) Math.toRadians(renderer.cameraPitch);
+        float yawInRadians = (float) Math.toRadians(renderer.cameraYaw);
+        float cameraX = renderer.cameraDistance * (float)(Math.cos(pitchInRadians) * Math.sin(yawInRadians));
+        float cameraY = renderer.cameraDistance * (float) Math.sin(pitchInRadians);
+        float cameraZ = renderer.cameraDistance * (float)(Math.cos(pitchInRadians) * Math.cos(yawInRadians));
+        Vec3 cameraPosition = new Vec3(cameraX, cameraY, cameraZ).add(renderer.cameraTarget);
 
-        Matrix4f proj = new Matrix4f().perspective((float) Math.toRadians(renderer.fov), aspect, 0.1f, 100f);
-        Matrix4f view = new Matrix4f().lookAt(camPos, renderer.camTarget, new Vector3f(0, 1, 0));
-        Matrix4f invVP = new Matrix4f(proj).mul(view).invert();
+        Mat4 projectionMatrix = new Mat4().setPerspective((float) Math.toRadians(renderer.fov), aspect, 0.1f, 100f);
+        Mat4 viewMatrix = new Mat4().setLookAt(cameraPosition, renderer.cameraTarget, new Vec3(0, 1, 0));
+        Mat4 inverseViewProjectionMatrix = new Mat4(projectionMatrix).multiplyMatrix(viewMatrix).invertMatrix();
 
-        Vector4f rayNear = new Vector4f(ndcX, ndcY, -1, 1).mul(invVP);
-        rayNear.div(rayNear.w);
-        Vector4f rayFar = new Vector4f(ndcX, ndcY, 1, 1).mul(invVP);
-        rayFar.div(rayFar.w);
+        Vec4 rayNearPoint = new Vec4(normalizedDeviceX, normalizedDeviceY, -1, 1).multiply(inverseViewProjectionMatrix);
+        rayNearPoint.divideByW();
+        Vec4 rayFarPoint = new Vec4(normalizedDeviceX, normalizedDeviceY, 1, 1).multiply(inverseViewProjectionMatrix);
+        rayFarPoint.divideByW();
 
-        Vector3f rayOrigin = new Vector3f(rayNear.x, rayNear.y, rayNear.z);
-        Vector3f rayDir = new Vector3f(rayFar.x - rayNear.x, rayFar.y - rayNear.y, rayFar.z - rayNear.z).normalize();
+        Vec3 rayOriginPoint = new Vec3(rayNearPoint.x, rayNearPoint.y, rayNearPoint.z);
+        Vec3 rayDirectionVector = new Vec3(rayFarPoint.x - rayNearPoint.x, rayFarPoint.y - rayNearPoint.y, rayFarPoint.z - rayNearPoint.z).normalize();
 
-        return new Ray(rayOrigin, rayDir);
+        return new Ray(rayOriginPoint, rayDirectionVector);
     }
 
-    private Vector3f screenToGroundPlane(int mouseX, int mouseY, float planeY) {
+    private Vec3 screenToGroundPlane(int mouseX, int mouseY, float planeY) {
         Ray ray = createRayFromMouse(mouseX, mouseY);
-        float t = (planeY - ray.origin.y) / ray.direction.y;
-        return new Vector3f(ray.origin).add(new Vector3f(ray.direction).mul(t));
+        float t = (planeY - ray.rayOriginPoint.y) / ray.rayDirectionVector.y;
+        return new Vec3(ray.rayOriginPoint).add(new Vec3(ray.rayDirectionVector).multiply(t));
     }
 
     private SceneData.Object3D pickObject(int mouseX, int mouseY) {
@@ -573,7 +558,7 @@ public class KitchenApp extends JFrame {
 
         synchronized (objects) {
             for (SceneData.Object3D obj : objects) {
-                float t = intersectAABB(ray.origin, ray.direction, obj);
+                float t = intersectAABB(ray.rayOriginPoint, ray.rayDirectionVector, obj);
                 if (t > 0 && t < closestDist) {
                     closestDist = t;
                     closest = obj;
@@ -584,40 +569,40 @@ public class KitchenApp extends JFrame {
         return closest;
     }
 
-    private float intersectAABB(Vector3f origin, Vector3f dir, SceneData.Object3D obj) {
-        Vector3f min = new Vector3f(obj.min).mul(obj.scale).add(obj.position);
-        Vector3f max = new Vector3f(obj.max).mul(obj.scale).add(obj.position);
+    private float intersectAABB(Vec3 rayOriginPoint, Vec3 rayDirectionVector, SceneData.Object3D obj) {
+        Vec3 aabbMinWorld = new Vec3(obj.boundingBoxMin).multiply(obj.scaleFactors).add(obj.worldPosition);
+        Vec3 aabbMaxWorld = new Vec3(obj.boundingBoxMax).multiply(obj.scaleFactors).add(obj.worldPosition);
 
         float padding = 0.2f;
-        min.sub(padding, padding, padding);
-        max.add(padding, padding, padding);
+        aabbMinWorld.subtract(padding, padding, padding);
+        aabbMaxWorld.add(padding, padding, padding);
 
-        float tmin = (min.x - origin.x) / dir.x;
-        float tmax = (max.x - origin.x) / dir.x;
-        if (tmin > tmax) { float tmp = tmin; tmin = tmax; tmax = tmp; }
+        float tMinX = (aabbMinWorld.x - rayOriginPoint.x) / rayDirectionVector.x;
+        float tMaxX = (aabbMaxWorld.x - rayOriginPoint.x) / rayDirectionVector.x;
+        if (tMinX > tMaxX) { float tmp = tMinX; tMinX = tMaxX; tMaxX = tmp; }
 
-        float tymin = (min.y - origin.y) / dir.y;
-        float tymax = (max.y - origin.y) / dir.y;
-        if (tymin > tymax) { float tmp = tymin; tymin = tymax; tymax = tmp; }
+        float tMinY = (aabbMinWorld.y - rayOriginPoint.y) / rayDirectionVector.y;
+        float tMaxY = (aabbMaxWorld.y - rayOriginPoint.y) / rayDirectionVector.y;
+        if (tMinY > tMaxY) { float tmp = tMinY; tMinY = tMaxY; tMaxY = tmp; }
 
-        if (tmin > tymax || tymin > tmax) return -1;
-        if (tymin > tmin) tmin = tymin;
-        if (tymax < tmax) tmax = tymax;
+        if (tMinX > tMaxY || tMinY > tMaxX) return -1;
+        if (tMinY > tMinX) tMinX = tMinY;
+        if (tMaxY < tMaxX) tMaxX = tMaxY;
 
-        float tzmin = (min.z - origin.z) / dir.z;
-        float tzmax = (max.z - origin.z) / dir.z;
-        if (tzmin > tzmax) { float tmp = tzmin; tzmin = tzmax; tzmax = tmp; }
+        float tMinZ = (aabbMinWorld.z - rayOriginPoint.z) / rayDirectionVector.z;
+        float tMaxZ = (aabbMaxWorld.z - rayOriginPoint.z) / rayDirectionVector.z;
+        if (tMinZ > tMaxZ) { float tmp = tMinZ; tMinZ = tMaxZ; tMaxZ = tmp; }
 
-        if (tmin > tzmax || tzmin > tmax) return -1;
-        if (tzmin > tmin) tmin = tzmin;
+        if (tMinX > tMaxZ || tMinZ > tMaxX) return -1;
+        if (tMinZ > tMinX) tMinX = tMinZ;
 
-        return tmin;
+        return tMinX;
     }
 
     private void moveObjectOnGround(SceneData.Object3D obj, int mouseX, int mouseY) {
-        Vector3f hitPoint = screenToGroundPlane(mouseX, mouseY, dragPlaneY);
-        obj.position.x = hitPoint.x - dragOffset.x;
-        obj.position.z = hitPoint.z - dragOffset.z;
+        Vec3 hitPoint = screenToGroundPlane(mouseX, mouseY, dragPlaneY);
+        obj.worldPosition.x = hitPoint.x - dragOffsetVector.x;
+        obj.worldPosition.z = hitPoint.z - dragOffsetVector.z;
     }
 
     private void toggleWebcam() {
@@ -636,7 +621,6 @@ public class KitchenApp extends JFrame {
 
     private void webcamLoop() {
         VideoCapture capture = new VideoCapture(0);
-        if (!capture.isOpened()) capture = new VideoCapture(1);
 
         if (!capture.isOpened()) {
             SwingUtilities.invokeLater(() -> {

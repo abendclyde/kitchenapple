@@ -1,7 +1,5 @@
 package kitchenmaker;
 
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import com.jogamp.opengl.GL2;
 import java.io.*;
 import java.nio.*;
@@ -32,25 +30,25 @@ public class SceneData {
         public String name;
         public float[] vertices;
         public int[] indices;
-        public Vector3f position = new Vector3f(0, 0, 0);
-        public Vector3f rotation = new Vector3f(0, 0, 0);
-        public Vector3f scale = new Vector3f(1, 1, 1);
-        public Vector3f color = new Vector3f(0.8f, 0.8f, 0.8f);
+        public Vec3 worldPosition = new Vec3(0, 0, 0);
+        public Vec3 rotationAngles = new Vec3(0, 0, 0);
+        public Vec3 scaleFactors = new Vec3(1, 1, 1);
+        public Vec3 color = new Vec3(0.8f, 0.8f, 0.8f);
 
         // Animationsfelder
         public boolean isAnimating = false;
         public AppearanceMode animationMode = AppearanceMode.NONE;
         public long animationStartTime = 0;
         public float animationDuration = 0; // in Sekunden
-        public Vector3f targetPosition = new Vector3f();
-        public Vector3f targetScale = new Vector3f(1, 1, 1);
-        public Vector3f startPosition = new Vector3f();
-        public Vector3f startScale = new Vector3f(1, 1, 1);
+        public Vec3 animationTargetPosition = new Vec3();
+        public Vec3 animationTargetScale = new Vec3(1, 1, 1);
+        public Vec3 animationStartPosition = new Vec3();
+        public Vec3 animationStartScale = new Vec3(1, 1, 1);
 
         private int vao, vbo, ebo;
         private boolean initialized = false;
-        public Vector3f min = new Vector3f();
-        public Vector3f max = new Vector3f();
+        public Vec3 boundingBoxMin = new Vec3();
+        public Vec3 boundingBoxMax = new Vec3();
 
         public Object3D(String name, float[] vertices, int[] indices) {
             this.name = name;
@@ -72,28 +70,28 @@ public class SceneData {
             this.isAnimating = true;
 
             // Zielwerte speichern (aktuelle Position/Scale)
-            this.targetPosition.set(this.position);
-            this.targetScale.set(this.scale);
+            this.animationTargetPosition.set(this.worldPosition);
+            this.animationTargetScale.set(this.scaleFactors);
 
             // Startwerte je nach Modus setzen
             switch (mode) {
                 case FALL_DOWN -> {
                     // Start von oben (Y = 5 über Ziel)
-                    this.startPosition.set(this.position.x, this.position.y + 5.0f, this.position.z);
-                    this.startScale.set(this.scale);
-                    this.position.set(this.startPosition);
+                    this.animationStartPosition.set(this.worldPosition.x, this.worldPosition.y + 5.0f, this.worldPosition.z);
+                    this.animationStartScale.set(this.scaleFactors);
+                    this.worldPosition.set(this.animationStartPosition);
                 }
                 case RISE_UP -> {
                     // Start von unten (Y = 5 unter Ziel)
-                    this.startPosition.set(this.position.x, this.position.y - 5.0f, this.position.z);
-                    this.startScale.set(this.scale);
-                    this.position.set(this.startPosition);
+                    this.animationStartPosition.set(this.worldPosition.x, this.worldPosition.y - 5.0f, this.worldPosition.z);
+                    this.animationStartScale.set(this.scaleFactors);
+                    this.worldPosition.set(this.animationStartPosition);
                 }
                 case GROW -> {
                     // Start mit Größe 0
-                    this.startPosition.set(this.position);
-                    this.startScale.set(0.01f, 0.01f, 0.01f);
-                    this.scale.set(this.startScale);
+                    this.animationStartPosition.set(this.worldPosition);
+                    this.animationStartScale.set(0.01f, 0.01f, 0.01f);
+                    this.scaleFactors.set(this.animationStartScale);
                 }
                 default -> isAnimating = false;
             }
@@ -115,22 +113,22 @@ public class SceneData {
 
             switch (animationMode) {
                 case FALL_DOWN, RISE_UP -> {
-                    position.x = lerp(startPosition.x, targetPosition.x, eased);
-                    position.y = lerp(startPosition.y, targetPosition.y, eased);
-                    position.z = lerp(startPosition.z, targetPosition.z, eased);
+                    worldPosition.x = lerp(animationStartPosition.x, animationTargetPosition.x, eased);
+                    worldPosition.y = lerp(animationStartPosition.y, animationTargetPosition.y, eased);
+                    worldPosition.z = lerp(animationStartPosition.z, animationTargetPosition.z, eased);
                 }
                 case GROW -> {
-                    scale.x = lerp(startScale.x, targetScale.x, eased);
-                    scale.y = lerp(startScale.y, targetScale.y, eased);
-                    scale.z = lerp(startScale.z, targetScale.z, eased);
+                    scaleFactors.x = lerp(animationStartScale.x, animationTargetScale.x, eased);
+                    scaleFactors.y = lerp(animationStartScale.y, animationTargetScale.y, eased);
+                    scaleFactors.z = lerp(animationStartScale.z, animationTargetScale.z, eased);
                 }
                 default -> {}
             }
 
             if (progress >= 1.0f) {
                 // Animation abgeschlossen - Zielwerte setzen
-                position.set(targetPosition);
-                scale.set(targetScale);
+                worldPosition.set(animationTargetPosition);
+                scaleFactors.set(animationTargetScale);
                 isAnimating = false;
                 return false;
             }
@@ -143,12 +141,16 @@ public class SceneData {
         }
 
         private void calculateBounds() {
-            min.set(Float.MAX_VALUE);
-            max.set(-Float.MAX_VALUE);
+            boundingBoxMin.set(Float.MAX_VALUE);
+            boundingBoxMax.set(-Float.MAX_VALUE);
             for (int i = 0; i < vertices.length; i += 6) {
                 float x = vertices[i], y = vertices[i+1], z = vertices[i+2];
-                min.x = Math.min(min.x, x); min.y = Math.min(min.y, y); min.z = Math.min(min.z, z);
-                max.x = Math.max(max.x, x); max.y = Math.max(max.y, y); max.z = Math.max(max.z, z);
+                boundingBoxMin.x = Math.min(boundingBoxMin.x, x);
+                boundingBoxMin.y = Math.min(boundingBoxMin.y, y);
+                boundingBoxMin.z = Math.min(boundingBoxMin.z, z);
+                boundingBoxMax.x = Math.max(boundingBoxMax.x, x);
+                boundingBoxMax.y = Math.max(boundingBoxMax.y, y);
+                boundingBoxMax.z = Math.max(boundingBoxMax.z, z);
             }
         }
 
@@ -163,12 +165,14 @@ public class SceneData {
         private void draw(GL2 gl, int modelLoc, int colorLoc, int drawMode) {
             if (!initialized) init(gl);
 
-            Matrix4f model = new Matrix4f()
-                    .translate(position)
-                    .rotateX(rotation.x).rotateY(rotation.y).rotateZ(rotation.z)
-                    .scale(scale);
+            Mat4 modelMatrix = new Mat4()
+                    .translate(worldPosition)
+                    .rotateAroundX(rotationAngles.x)
+                    .rotateAroundY(rotationAngles.y)
+                    .rotateAroundZ(rotationAngles.z)
+                    .scale(scaleFactors);
 
-            gl.glUniformMatrix4fv(modelLoc, 1, false, model.get(new float[16]), 0);
+            gl.glUniformMatrix4fv(modelLoc, 1, false, modelMatrix.toFloatArray(), 0);
             gl.glUniform3f(colorLoc, color.x, color.y, color.z);
 
             gl.glBindVertexArray(vao);

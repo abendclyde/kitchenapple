@@ -1,8 +1,6 @@
 package kitchenmaker;
 
 import com.jogamp.opengl.*;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import java.util.List;
 
 /**
@@ -66,7 +64,7 @@ public class RenderEngine implements GLEventListener {
     public float cameraYaw = 45.0f;
     public float cameraPitch = 30.0f;
     public float cameraDistance = 8.0f;
-    public Vector3f camTarget = new Vector3f(0, 0, 0);
+    public Vec3 cameraTarget = new Vec3(0, 0, 0);
     public float fov = 60.0f;
 
     public SceneData.Object3D selectedObject = null;
@@ -77,13 +75,13 @@ public class RenderEngine implements GLEventListener {
         this.grid = SceneData.createGrid(20, 1.0f);
     }
 
-    private Vector3f calculateCameraPosition() {
-        float pitchRad = (float) Math.toRadians(cameraPitch);
-        float yawRad = (float) Math.toRadians(cameraYaw);
-        float x = cameraDistance * (float) (Math.cos(pitchRad) * Math.sin(yawRad));
-        float y = cameraDistance * (float) Math.sin(pitchRad);
-        float z = cameraDistance * (float) (Math.cos(pitchRad) * Math.cos(yawRad));
-        return new Vector3f(x, y, z).add(camTarget);
+    private Vec3 calculateCameraPosition() {
+        float pitchInRadians = (float) Math.toRadians(cameraPitch);
+        float yawInRadians = (float) Math.toRadians(cameraYaw);
+        float x = cameraDistance * (float) (Math.cos(pitchInRadians) * Math.sin(yawInRadians));
+        float y = cameraDistance * (float) Math.sin(pitchInRadians);
+        float z = cameraDistance * (float) (Math.cos(pitchInRadians) * Math.cos(yawInRadians));
+        return new Vec3(x, y, z).add(cameraTarget);
     }
 
     @Override
@@ -116,14 +114,14 @@ public class RenderEngine implements GLEventListener {
         int h = drawable.getSurfaceHeight();
         float aspect = (float) w / h;
 
-        Vector3f camPos = calculateCameraPosition();
-        Matrix4f proj = new Matrix4f().perspective((float) Math.toRadians(fov), aspect, 0.1f, 100f);
-        Matrix4f view = new Matrix4f().lookAt(camPos, camTarget, new Vector3f(0, 1, 0));
+        Vec3 cameraPosition = calculateCameraPosition();
+        Mat4 projectionMatrix = new Mat4().setPerspective((float) Math.toRadians(fov), aspect, 0.1f, 100f);
+        Mat4 viewMatrix = new Mat4().setLookAt(cameraPosition, cameraTarget, new Vec3(0, 1, 0));
 
-        gl.glUniformMatrix4fv(locProjection, 1, false, proj.get(new float[16]), 0);
-        gl.glUniformMatrix4fv(locView, 1, false, view.get(new float[16]), 0);
+        gl.glUniformMatrix4fv(locProjection, 1, false, projectionMatrix.toFloatArray(), 0);
+        gl.glUniformMatrix4fv(locView, 1, false, viewMatrix.toFloatArray(), 0);
         gl.glUniform3f(locLightPos, 5, 8, 5);
-        gl.glUniform3f(locViewPos, camPos.x, camPos.y, camPos.z);
+        gl.glUniform3f(locViewPos, cameraPosition.x, cameraPosition.y, cameraPosition.z);
 
         // Gitter rendern
         gl.glUniform1i(locIsSelected, 0);
